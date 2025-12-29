@@ -1,8 +1,8 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
 import { 
   LayoutDashboard, 
   Users, 
@@ -10,120 +10,169 @@ import {
   FileText, 
   Heart,
   Menu,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
+  CalendarClock,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { NavSection, type NavSection as NavSectionType } from "./nav-section"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
-const navigation = [
+const navData: NavSectionType[] = [
   {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
+    subheader: "Overview",
+    items: [
+      {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: <LayoutDashboard className="h-5 w-5" />,
+      },
+    ],
   },
   {
-    name: "Members",
-    href: "/members",
-    icon: Users,
-  },
-  {
-    name: "Events",
-    href: "/events",
-    icon: Calendar,
-  },
-  {
-    name: "Posts",
-    href: "/posts",
-    icon: FileText,
-  },
-  {
-    name: "Matrimony",
-    href: "/matrimony",
-    icon: Heart,
+    subheader: "Management",
+    items: [
+      {
+        title: "Members",
+        href: "/members",
+        icon: <Users className="h-5 w-5" />,
+        children: [
+          { title: "List", href: "/members" },
+          { title: "Create", href: "/members/new" },
+          { title: "Import CSV", href: "/members/import" },
+        ],
+      },
+      {
+        title: "Events",
+        href: "/events",
+        icon: <Calendar className="h-5 w-5" />,
+        children: [
+          { title: "Upcoming", href: "/events" },
+          { title: "Create Event", href: "/events/new" },
+          { title: "Recurring", href: "/events/recurring" },
+          { title: "Create Recurring", href: "/events/recurring/new" },
+        ],
+      },
+      {
+        title: "Posts",
+        href: "/posts",
+        icon: <FileText className="h-5 w-5" />,
+        children: [
+          { title: "List", href: "/posts" },
+          { title: "Create", href: "/posts/new" },
+        ],
+      },
+      {
+        title: "Matrimony",
+        href: "/matrimony",
+        icon: <Heart className="h-5 w-5" />,
+        children: [
+          { title: "Profiles", href: "/matrimony" },
+          { title: "Pending", href: "/matrimony?status=pending" },
+          { title: "Approved", href: "/matrimony?status=approved" },
+        ],
+      },
+    ],
   },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  className?: string
+}
+
+export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = React.useState(false)
+  const [isMobileOpen, setIsMobileOpen] = React.useState(false)
 
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
-      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed left-4 top-4 z-50 lg:hidden"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+      >
+        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
 
-      {/* Mobile sidebar */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
-          <div className="fixed inset-y-0 left-0 z-50 w-64 bg-background border-r" onClick={(e) => e.stopPropagation()}>
-            <div className="flex h-16 items-center border-b px-6">
-              <h2 className="text-lg font-semibold">Faith Church Admin</h2>
-            </div>
-            <nav className="flex-1 space-y-1 px-3 py-4">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.name}
-                  </Link>
-                )
-              })}
-            </nav>
-          </div>
-        </div>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
       )}
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background border-r px-6 pb-4">
-          <div className="flex h-16 shrink-0 items-center border-b">
-            <h2 className="text-lg font-semibold">Faith Church Admin</h2>
-          </div>
-          <nav className="flex flex-1 flex-col">
-            <ul role="list" className="flex flex-1 flex-col gap-y-1">
-              {navigation.map((item) => {
-                const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
-                return (
-                  <li key={item.name}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      <item.icon className="h-5 w-5" />
-                      {item.name}
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </nav>
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",
+          isCollapsed ? "w-[var(--layout-nav-mini-width)]" : "w-[var(--layout-nav-width)]",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          className
+        )}
+      >
+        {/* Logo */}
+        <div className={cn(
+          "flex h-16 items-center border-b border-sidebar-border px-4",
+          isCollapsed && "justify-center px-2"
+        )}>
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary">
+              <span className="text-lg font-bold text-sidebar-primary-foreground">F</span>
+            </div>
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-sidebar-accent-foreground">Faith Church</span>
+                <span className="text-xs text-sidebar-foreground">Admin</span>
+              </div>
+            )}
+          </Link>
         </div>
-      </div>
+
+        {/* Navigation */}
+        <ScrollArea className="flex-1 py-4">
+          <NavSection data={navData} isCollapsed={isCollapsed} />
+        </ScrollArea>
+
+        {/* Footer / Toggle */}
+        <div className="border-t border-sidebar-border p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              !isCollapsed && "justify-start gap-3 px-3"
+            )}
+            onClick={() => setIsCollapsed(!isCollapsed)}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <>
+                <ChevronLeft className="h-4 w-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </aside>
     </>
   )
 }
 
+// Export sidebar width for layout calculations
+export function useSidebarWidth() {
+  const [isCollapsed, setIsCollapsed] = React.useState(false)
+  
+  return {
+    width: isCollapsed ? "var(--layout-nav-mini-width)" : "var(--layout-nav-width)",
+    isCollapsed,
+    setIsCollapsed,
+  }
+}

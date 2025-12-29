@@ -22,9 +22,9 @@ export default function DashboardLayout({
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -38,10 +38,10 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="lg:pl-64">
+      <div className="lg:pl-[var(--layout-nav-width)] transition-all duration-300">
         <Header />
-        <main className="py-6">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <main className="p-6">
+          <div className="mx-auto max-w-7xl">
             {children}
           </div>
         </main>
