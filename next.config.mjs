@@ -9,6 +9,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Static SPA export - generates static files in 'out/' directory
+  output: 'export',
+  // Trailing slashes ensure proper static file serving
+  trailingSlash: true,
 }
 
 export default nextConfig

@@ -22,6 +22,46 @@ npm run dev
 
 The app will be available at http://localhost:3032
 
+## Production Deployment
+
+### Initial Setup (One-time)
+
+1. Copy the production environment template:
+```bash
+cp env.production.example .env.production
+```
+
+2. Edit `.env.production` and fill in your values:
+   - `DEPLOY_SERVER_IP`: Your server IP address
+   - `DEPLOY_SERVER_USER`: SSH user (usually `ubuntu`)
+   - `DEPLOY_SERVER_PATH`: Path on server (e.g., `/home/ubuntu/sites/faith-admin`)
+   - `DEPLOY_DOMAIN`: Your domain (e.g., `admin.faithcitychurch.net`)
+   - `NEXT_PUBLIC_API_BASE_URL`: Backend API URL
+   - `NEXT_PUBLIC_PRODUCT_KEY`: Admin product key from backend
+
+3. Run the setup script to configure infrastructure:
+```bash
+./scripts/setup-production.sh
+```
+
+This will:
+- Create nginx container on the kamal network
+- Register domain with kamal-proxy for SSL
+- Set up the deployment directory
+
+### Deploy
+
+Run the deployment script:
+```bash
+./scripts/deploy-production.sh
+```
+
+This will:
+- Build the static SPA
+- Upload files to the server
+- Restart nginx container
+- Verify deployment
+
 ## Features
 
 - **Dashboard**: Overview with statistics
