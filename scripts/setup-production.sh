@@ -33,7 +33,8 @@ done
 
 # Optional: nginx container port (default 8080)
 NGINX_PORT="${DEPLOY_NGINX_PORT:-8080}"
-NGINX_CONTAINER_NAME="${DEPLOY_NGINX_CONTAINER:-admin-nginx}"
+NGINX_CONTAINER_NAME="${DEPLOY_NGINX_CONTAINER:-faith-admin-nginx}"
+OLD_CONTAINER_NAME="admin-nginx"
 
 echo "✅ Environment variables loaded successfully"
 echo "🌐 Server: ${DEPLOY_SERVER_USER}@${DEPLOY_SERVER_IP}"
@@ -80,6 +81,13 @@ NGINX_CONF
 
 # Create the deployment directory
 mkdir -p ${DEPLOY_SERVER_PATH}
+
+# Remove old container if it exists with the old name
+if sudo docker ps -a --format '{{.Names}}' | grep -q "^${OLD_CONTAINER_NAME}\$"; then
+    echo "🗑️  Removing old container '${OLD_CONTAINER_NAME}'..."
+    sudo docker rm -f ${OLD_CONTAINER_NAME} 2>/dev/null || true
+    echo "✅ Old container removed"
+fi
 
 # Ensure placeholder index.html exists (needed for health check)
 if [ ! -f "${DEPLOY_SERVER_PATH}/index.html" ]; then

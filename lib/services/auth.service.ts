@@ -79,5 +79,17 @@ export class AuthService {
       return false;
     }
   }
+
+  /**
+   * Change user password
+   * Requires valid JWT token
+   */
+  static async changePassword(data: {
+    old_password: string;
+    new_password: string;
+    new_password_confirmation: string;
+  }): Promise<ApiResponse<{ message: string }>> {
+    return http.post<{ message: string }>('/auth/change_password', data);
+  }
 }
 

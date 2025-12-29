@@ -33,7 +33,8 @@ done
 
 # Optional: nginx container port (default 8080)
 NGINX_PORT="${DEPLOY_NGINX_PORT:-8080}"
-NGINX_CONTAINER_NAME="${DEPLOY_NGINX_CONTAINER:-admin-nginx}"
+NGINX_CONTAINER_NAME="${DEPLOY_NGINX_CONTAINER:-faith-admin-nginx}"
+OLD_CONTAINER_NAME="admin-nginx"
 
 echo "✅ Environment variables loaded successfully"
 echo "🌐 Server: ${DEPLOY_SERVER_USER}@${DEPLOY_SERVER_IP}"
@@ -85,6 +86,13 @@ ssh "${DEPLOY_SERVER_USER}@${DEPLOY_SERVER_IP}" "chmod -R 755 ${DEPLOY_SERVER_PA
 echo "🔄 Restarting nginx container to serve updated files..."
 ssh "${DEPLOY_SERVER_USER}@${DEPLOY_SERVER_IP}" << REMOTE_SCRIPT
 set -e
+
+# Remove old container if it exists with the old name
+if sudo docker ps -a --format '{{.Names}}' | grep -q "^${OLD_CONTAINER_NAME}\$"; then
+    echo "🗑️  Removing old container '${OLD_CONTAINER_NAME}'..."
+    sudo docker rm -f ${OLD_CONTAINER_NAME} 2>/dev/null || true
+    echo "✅ Old container removed"
+fi
 
 # Check if nginx container exists
 if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^${NGINX_CONTAINER_NAME}\$"; then
