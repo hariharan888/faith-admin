@@ -14,7 +14,7 @@ import { toast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { isAuthenticated, setError, clearError, login } = useAuthStore()
+  const { isAuthenticated, isInitializing, setError, clearError, login } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loginForm, setLoginForm] = useState({
@@ -22,12 +22,24 @@ export default function LoginPage() {
     password: ""
   })
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated (wait for initialization to complete)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!isInitializing && isAuthenticated) {
       router.push('/dashboard')
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, isInitializing, router])
+
+  // Show loading while checking authentication
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 via-background to-secondary/20">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleInputChange = (field: string, value: string) => {
     setLoginForm(prev => ({ ...prev, [field]: value }))

@@ -43,12 +43,56 @@ interface AuthState {
  * Authentication Store
  * Uses Zustand for client-side state management (no persistence)
  */
-export const useAuthStore = create<AuthState>()((set, get) => ({
-      // Initial State
+// Check for existing token synchronously on store creation
+// This runs on the client side only
+const getInitialAuthState = (): { user: AuthUser | null; isAuthenticated: boolean; isInitializing: boolean } => {
+  // Always start with not authenticated during SSR
+  if (typeof window === 'undefined') {
+    return {
       user: null,
       isAuthenticated: false,
-      isLoading: false,
       isInitializing: false,
+    };
+  }
+
+  try {
+    const token = tokenManager.getToken();
+    const userData = tokenManager.getUserData();
+    
+    if (token && userData) {
+      // Optimistically set authenticated state if token exists
+      // Will be validated asynchronously
+      return {
+        user: userData,
+        isAuthenticated: true,
+        isInitializing: true, // Will be set to false after validation
+      };
+    }
+  } catch (error) {
+    // If localStorage access fails, start unauthenticated
+    console.error('Failed to check initial auth state:', error);
+  }
+
+  return {
+    user: null,
+    isAuthenticated: false,
+    isInitializing: false,
+  };
+};
+
+// Only get initial state on client side
+const initialAuthState = typeof window !== 'undefined' ? getInitialAuthState() : {
+  user: null,
+  isAuthenticated: false,
+  isInitializing: false,
+};
+
+export const useAuthStore = create<AuthState>()((set, get) => ({
+      // Initial State - check for token synchronously
+      user: initialAuthState.user,
+      isAuthenticated: initialAuthState.isAuthenticated,
+      isLoading: false,
+      isInitializing: initialAuthState.isInitializing,
       error: null,
 
       // Synchronous Actions
@@ -94,18 +138,43 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       // Async Actions
       initializeAuth: async () => {
-        const { isInitializing } = get();
-        if (isInitializing) return;
+        const state = get();
+        // If already initializing and we don't have optimistic auth, skip
+        // If we have optimistic auth (isAuthenticated from token check), we still need to validate
+        if (state.isInitializing && !state.isAuthenticated) {
+          return; // Already initializing without optimistic auth
+        }
 
         clog.auth('Initializing authentication');
+        // Set isInitializing if not already set (it might be set from optimistic auth)
         set({ isInitializing: true, error: null });
 
         try {
           const token = tokenManager.getToken();
           if (!token) {
             clog.auth('No token found, skipping initialization');
-            set({ isInitializing: false });
+            set({ 
+              isInitializing: false,
+              isAuthenticated: false,
+              user: null,
+            });
             return;
+          }
+
+          // If we already have user data from initial state, we're optimistically authenticated
+          // Just validate the token
+          const currentState = get();
+          const hasOptimisticAuth = currentState.isAuthenticated && currentState.user;
+
+          if (!hasOptimisticAuth) {
+            // Try to get user data from localStorage first
+            const cachedUserData = tokenManager.getUserData();
+            if (cachedUserData) {
+              set({
+                user: cachedUserData,
+                isAuthenticated: true,
+              });
+            }
           }
 
           clog.auth('Validating existing token');
@@ -114,6 +183,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           const userData = response.data;
 
           clog.auth('Token validation successful', { userId: userData.user.id });
+          // Update with fresh user data
+          tokenManager.setUserData(userData);
           set({
             user: userData,
             isAuthenticated: true,

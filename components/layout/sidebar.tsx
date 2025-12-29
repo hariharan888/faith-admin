@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { NavSection, type NavSection as NavSectionType } from "./nav-section"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useSidebarStore } from "@/lib/stores/sidebar.store"
 
 const navData: NavSectionType[] = [
   {
@@ -84,7 +85,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
-  const [isCollapsed, setIsCollapsed] = React.useState(false)
+  const { isCollapsed, setIsCollapsed } = useSidebarStore()
   const [isMobileOpen, setIsMobileOpen] = React.useState(false)
 
   return (
@@ -160,13 +161,3 @@ export function Sidebar({ className }: SidebarProps) {
   )
 }
 
-// Export sidebar width for layout calculations
-export function useSidebarWidth() {
-  const [isCollapsed, setIsCollapsed] = React.useState(false)
-  
-  return {
-    width: isCollapsed ? "var(--layout-nav-mini-width)" : "var(--layout-nav-width)",
-    isCollapsed,
-    setIsCollapsed,
-  }
-}

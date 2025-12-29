@@ -33,6 +33,7 @@ export interface EventFormData {
   event_date: string
   event_time?: string
   featured_image_url?: string
+  status?: "scheduled" | "cancelled" | "completed"
 }
 
 export interface RecurringEventFormData {
