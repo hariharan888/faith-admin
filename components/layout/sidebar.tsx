@@ -71,8 +71,7 @@ const navData: NavSectionType[] = [
         icon: <Heart className="h-5 w-5" />,
         children: [
           { title: "Profiles", href: "/matrimony" },
-          { title: "Pending", href: "/matrimony?status=pending" },
-          { title: "Approved", href: "/matrimony?status=approved" },
+          { title: "Import CSV", href: "/matrimony/import" },
         ],
       },
     ],
@@ -111,12 +110,29 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",
+          "relative fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",
           isCollapsed ? "w-[var(--layout-nav-mini-width)]" : "w-[var(--layout-nav-width)]",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           className
         )}
       >
+        {/* Floating Collapse Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "absolute -right-3 top-20 z-10 h-6 w-6 rounded-full border bg-background shadow-md hover:bg-accent transition-all",
+            isCollapsed && "-right-3"
+          )}
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </Button>
+
         {/* Logo */}
         <div className={cn(
           "flex h-16 items-center border-b border-sidebar-border px-4",
@@ -139,28 +155,6 @@ export function Sidebar({ className }: SidebarProps) {
         <ScrollArea className="flex-1 py-4">
           <NavSection data={navData} isCollapsed={isCollapsed} />
         </ScrollArea>
-
-        {/* Footer / Toggle */}
-        <div className="border-t border-sidebar-border p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              !isCollapsed && "justify-start gap-3 px-3"
-            )}
-            onClick={() => setIsCollapsed(!isCollapsed)}
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <>
-                <ChevronLeft className="h-4 w-4" />
-                <span>Collapse</span>
-              </>
-            )}
-          </Button>
-        </div>
       </aside>
     </>
   )

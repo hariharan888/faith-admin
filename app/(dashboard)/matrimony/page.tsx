@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Check, X, Eye, Trash2, Heart, User } from "lucide-react"
+import { Check, X, Eye, Trash2, Edit, Heart, User } from "lucide-react"
 import { format, differenceInYears } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/breadcrumbs"
@@ -11,8 +11,8 @@ import { DataTable, SortableHeader, RowActions } from "@/components/shared/data-
 import { StatusLabel } from "@/components/shared/status-label"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Upload } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -29,12 +29,10 @@ import { toast } from "@/hooks/use-toast"
 
 export default function MatrimonyPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialTab = searchParams.get("status") || "all"
   
   const [profiles, setProfiles] = useState<MatrimonyProfile[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState(initialTab)
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [rejectDialog, setRejectDialog] = useState<{
@@ -142,23 +140,16 @@ export default function MatrimonyPage() {
   }
 
   const filteredProfiles = useMemo(() => {
-    switch (activeTab) {
-      case "pending":
-        return profiles.filter((p) => p.profile_status === "pending_approval")
-      case "approved":
-        return profiles.filter((p) => p.profile_status === "approved")
-      case "rejected":
-        return profiles.filter((p) => p.profile_status === "rejected")
-      default:
-        return profiles
-    }
-  }, [profiles, activeTab])
+    if (statusFilter === "all") return profiles
+    return profiles.filter((p) => p.profile_status === statusFilter)
+  }, [profiles, statusFilter])
 
-  const tabCounts = useMemo(() => ({
+  const statusCounts = useMemo(() => ({
     all: profiles.length,
-    pending: profiles.filter((p) => p.profile_status === "pending_approval").length,
+    pending_approval: profiles.filter((p) => p.profile_status === "pending_approval").length,
     approved: profiles.filter((p) => p.profile_status === "approved").length,
     rejected: profiles.filter((p) => p.profile_status === "rejected").length,
+    draft: profiles.filter((p) => p.profile_status === "draft").length,
   }), [profiles])
 
   const columns: ColumnDef<MatrimonyProfile>[] = [
@@ -214,7 +205,7 @@ export default function MatrimonyPage() {
       header: "Status",
       cell: ({ row }) => (
         <StatusLabel 
-          status={row.original.profile_status.replace("_", " ")} 
+          status={row.original.profile_status.replace(/_/g, " ")} 
         />
       ),
     },
@@ -228,6 +219,7 @@ export default function MatrimonyPage() {
       cell: ({ row }) => {
         const profile = row.original
         const isPending = profile.profile_status === "pending_approval"
+        const canEdit = profile.profile_status !== "approved" // Only allow editing non-approved profiles
 
         return (
           <div className="flex items-center gap-1">
@@ -270,6 +262,11 @@ export default function MatrimonyPage() {
                   icon: <Eye className="h-4 w-4" />,
                   onClick: () => router.push(`/matrimony/detail?id=${profile.id}`),
                 },
+                ...(canEdit ? [{
+                  label: "Edit",
+                  icon: <Edit className="h-4 w-4" />,
+                  onClick: () => router.push(`/matrimony/detail?id=${profile.id}&edit=true`),
+                }] : []),
                 {
                   label: "Delete",
                   icon: <Trash2 className="h-4 w-4" />,
@@ -293,43 +290,69 @@ export default function MatrimonyPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Matrimony" },
         ]}
+        actions={
+          <Button variant="outline" onClick={() => router.push("/matrimony/import")}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import CSV
+          </Button>
+        }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all" className="gap-2">
-            All <Badge variant="secondary" className="ml-1">{tabCounts.all}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="gap-2">
-            Pending 
-            {tabCounts.pending > 0 && (
-              <Badge variant="destructive" className="ml-1">{tabCounts.pending}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="approved" className="gap-2">
-            Approved <Badge variant="secondary" className="ml-1">{tabCounts.approved}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="rejected" className="gap-2">
-            Rejected <Badge variant="secondary" className="ml-1">{tabCounts.rejected}</Badge>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab} className="mt-6">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={filteredProfiles}
-              searchKey="name"
-              searchPlaceholder="Search profiles..."
-              onRowClick={(row) => router.push(`/matrimony/detail?id=${row.id}`)}
-            />
+      {/* Status Filter */}
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          variant={statusFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("all")}
+        >
+          All <Badge variant="secondary" className="ml-1">{statusCounts.all}</Badge>
+        </Button>
+        <Button
+          variant={statusFilter === "pending_approval" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("pending_approval")}
+        >
+          Pending
+          {statusCounts.pending_approval > 0 && (
+            <Badge variant="destructive" className="ml-1">{statusCounts.pending_approval}</Badge>
           )}
-        </TabsContent>
-      </Tabs>
+        </Button>
+        <Button
+          variant={statusFilter === "approved" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("approved")}
+        >
+          Approved <Badge variant="secondary" className="ml-1">{statusCounts.approved}</Badge>
+        </Button>
+        <Button
+          variant={statusFilter === "rejected" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("rejected")}
+        >
+          Rejected <Badge variant="secondary" className="ml-1">{statusCounts.rejected}</Badge>
+        </Button>
+        <Button
+          variant={statusFilter === "draft" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("draft")}
+        >
+          Draft <Badge variant="secondary" className="ml-1">{statusCounts.draft}</Badge>
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredProfiles}
+          searchKey="name"
+          searchPlaceholder="Search profiles..."
+          onRowClick={(row) => router.push(`/matrimony/detail?id=${row.id}`)}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <ConfirmDialog

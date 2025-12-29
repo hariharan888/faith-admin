@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { toast } from "@/hooks/use-toast"
@@ -32,42 +31,40 @@ interface ImportResult {
 
 // User-readable column names mapping to API field names
 const COLUMN_MAPPING: Record<string, string> = {
-  "Membership Number": "membership_number",
   "Name": "name",
-  "Father/Husband Name": "father_husband_name",
-  "Occupation": "occupation",
   "Gender": "gender",
-  "Marital Status": "marital_status",
-  "Address Line 1": "address_line_1",
-  "Address Line 2": "address_line_2",
-  "City": "city",
-  "State": "state",
-  "Pincode": "pincode",
-  "Country": "country",
-  "Mobile Number": "mobile_number",
   "Date of Birth": "date_of_birth",
-  "Marriage Date": "marriage_date",
-  "Member Since Year": "member_since_year",
-  "Baptized Year": "baptized_year",
-  "Spiritual Status": "spiritual_status",
+  "Marital Status": "marital_status",
+  "Education": "education",
+  "Job Type": "job_type",
+  "Job Title": "job_title",
+  "Income": "income",
+  "Height": "height",
+  "Weight": "weight",
+  "Complexion": "complexion",
+  "Mobile Number": "mobile_number",
+  "Native Place": "native_place",
+  "Mother Tongue": "mother_tongue",
+  "About": "about",
+  "Father Name": "father_name",
+  "Father Occupation": "father_occupation",
+  "Mother Name": "mother_name",
+  "Mother Occupation": "mother_occupation",
+  "Family Type": "family_type",
+  "Church Name": "church_name",
+  "Denomination": "denomination",
+  "Pastor Name": "pastor_name",
+  "Pastor Mobile": "pastor_mobile_number",
 }
 
 const EXPECTED_COLUMNS = Object.keys(COLUMN_MAPPING)
-const REQUIRED_COLUMNS = ["Membership Number", "Name"]
-const API_FIELD_NAMES = Object.values(COLUMN_MAPPING)
+const REQUIRED_COLUMNS = ["Name", "Gender", "Date of Birth"]
 
-// Helper function to map user-readable column to API field name
 function mapColumnToApiField(columnName: string): string {
   return COLUMN_MAPPING[columnName] || columnName
 }
 
-// Helper function to map API field name to user-readable column
-function mapApiFieldToColumn(apiField: string): string {
-  const entry = Object.entries(COLUMN_MAPPING).find(([_, value]) => value === apiField)
-  return entry ? entry[0] : apiField
-}
-
-export default function ImportMembersPage() {
+export default function ImportMatrimonyPage() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [parsedData, setParsedData] = useState<CSVRow[]>([])
@@ -122,7 +119,6 @@ export default function ImportMembersPage() {
         const data = results.data as CSVRow[]
         const cols = results.meta.fields || []
         
-        // Validate columns
         const missingRequired = REQUIRED_COLUMNS.filter(col => !cols.includes(col))
         if (missingRequired.length > 0) {
           toast({
@@ -145,80 +141,53 @@ export default function ImportMembersPage() {
     })
   }
 
-  const downloadTemplate = () => {
-    // Create CSV content with user-readable headers
-    const headers = EXPECTED_COLUMNS.join(",")
-    const sampleRow = EXPECTED_COLUMNS.map(() => "").join(",")
-    const csvContent = `${headers}\n${sampleRow}\n`
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    
-    link.setAttribute("href", url)
-    link.setAttribute("download", "members_template.csv")
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
   const validateRow = (row: CSVRow, rowIndex: number): string[] => {
     const errors: string[] = []
     
-    // Check required fields
     const nameCol = columns.find(col => mapColumnToApiField(col) === "name" || col === "Name")
-    const membershipCol = columns.find(col => mapColumnToApiField(col) === "membership_number" || col === "Membership Number")
+    const genderCol = columns.find(col => mapColumnToApiField(col) === "gender" || col === "Gender")
+    const dobCol = columns.find(col => mapColumnToApiField(col) === "date_of_birth" || col === "Date of Birth")
     
     if (!nameCol || !row[nameCol]?.trim()) {
       errors.push("Name is required")
     }
-    if (!membershipCol || !row[membershipCol]?.trim()) {
-      errors.push("Membership Number is required")
+    if (!genderCol || !row[genderCol]?.trim()) {
+      errors.push("Gender is required")
+    } else if (!["Male", "Female"].includes(row[genderCol])) {
+      errors.push("Gender must be 'Male' or 'Female'")
     }
-    
-    // Validate date formats
-    const dobCol = columns.find(col => mapColumnToApiField(col) === "date_of_birth" || col === "Date of Birth")
-    if (dobCol && row[dobCol]) {
+    if (!dobCol || !row[dobCol]?.trim()) {
+      errors.push("Date of Birth is required")
+    } else {
       const dob = new Date(row[dobCol])
       if (isNaN(dob.getTime())) {
         errors.push("Date of Birth must be in YYYY-MM-DD format")
       }
     }
     
-    const marriageCol = columns.find(col => mapColumnToApiField(col) === "marriage_date" || col === "Marriage Date")
-    if (marriageCol && row[marriageCol]) {
-      const marriageDate = new Date(row[marriageCol])
-      if (isNaN(marriageDate.getTime())) {
-        errors.push("Marriage Date must be in YYYY-MM-DD format")
-      }
-    }
-    
-    // Validate year fields
-    const memberSinceCol = columns.find(col => mapColumnToApiField(col) === "member_since_year" || col === "Member Since Year")
-    if (memberSinceCol && row[memberSinceCol]) {
-      const year = parseInt(row[memberSinceCol])
-      if (isNaN(year) || year < 1900 || year > new Date().getFullYear()) {
-        errors.push("Member Since Year must be a valid year")
-      }
-    }
-    
-    const baptizedCol = columns.find(col => mapColumnToApiField(col) === "baptized_year" || col === "Baptized Year")
-    if (baptizedCol && row[baptizedCol]) {
-      const year = parseInt(row[baptizedCol])
-      if (isNaN(year) || year < 1900 || year > new Date().getFullYear()) {
-        errors.push("Baptized Year must be a valid year")
-      }
-    }
-    
     return errors
+  }
+
+  const downloadTemplate = () => {
+    const headers = EXPECTED_COLUMNS.join(",")
+    const sampleRow = EXPECTED_COLUMNS.map(() => "").join(",")
+    const csvContent = `${headers}\n${sampleRow}\n`
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    
+    link.setAttribute("href", url)
+    link.setAttribute("download", "matrimony_profiles_template.csv")
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleImport = async () => {
     if (!parsedData.length) return
 
-    // Validate all rows first
     const validationErrors: Array<{ row: number; errors: string[] }> = []
     parsedData.forEach((row, index) => {
       const errors = validateRow(row, index)
@@ -247,7 +216,6 @@ export default function ImportMembersPage() {
       const row = parsedData[i]
       
       try {
-        // Map user-readable columns to API field names
         const apiData: Record<string, any> = {}
         columns.forEach(col => {
           const apiField = mapColumnToApiField(col)
@@ -256,18 +224,17 @@ export default function ImportMembersPage() {
           }
         })
 
-        // Validate required fields
-        if (!apiData.name || !apiData.membership_number) {
+        if (!apiData.name || !apiData.gender || !apiData.date_of_birth) {
           importResults.push({
             success: false,
             row: i + 1,
-            error: "Missing required fields (name, membership_number)",
+            error: "Missing required fields",
           })
           continue
         }
 
-        // TODO: Call API to create member
-        // await MembersService.create(apiData)
+        // TODO: Call API to create profile
+        // await MatrimonyService.create(apiData)
         
         importResults.push({
           success: true,
@@ -291,9 +258,9 @@ export default function ImportMembersPage() {
     if (errorCount === 0) {
       toast({
         title: "Import complete",
-        description: `Successfully imported ${successCount} members`,
+        description: `Successfully imported ${successCount} profiles`,
       })
-      router.push("/members")
+      router.push("/matrimony")
     } else {
       toast({
         title: "Import completed with errors",
@@ -317,22 +284,21 @@ export default function ImportMembersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Import Members"
-        description="Upload a CSV file to bulk import church members"
+        title="Import Matrimony Profiles"
+        description="Upload a CSV file to bulk import matrimony profiles"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Members", href: "/members" },
+          { label: "Matrimony", href: "/matrimony" },
           { label: "Import" },
         ]}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Upload Card */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Upload CSV File</CardTitle>
             <CardDescription>
-              Upload a CSV file with member data. Required columns: Name, Membership Number
+              Upload a CSV file with profile data. Required columns: Name, Gender, Date of Birth
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -367,7 +333,6 @@ export default function ImportMembersPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* File info */}
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div className="flex items-center gap-3">
                     <FileSpreadsheet className="h-8 w-8 text-primary" />
@@ -383,7 +348,6 @@ export default function ImportMembersPage() {
                   </Button>
                 </div>
 
-                {/* Validation warnings */}
                 {missingColumns.length > 0 && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
@@ -394,7 +358,6 @@ export default function ImportMembersPage() {
                   </Alert>
                 )}
 
-                {/* Preview */}
                 {parsedData.length > 0 && (
                   <div className="border rounded-lg overflow-hidden">
                     <div className="max-h-[300px] overflow-auto">
@@ -403,9 +366,7 @@ export default function ImportMembersPage() {
                           <TableRow>
                             <TableHead className="w-12">#</TableHead>
                             {columns.slice(0, 5).map((col) => (
-                              <TableHead key={col}>
-                                {col}
-                              </TableHead>
+                              <TableHead key={col}>{col}</TableHead>
                             ))}
                             {columns.length > 5 && (
                               <TableHead>+{columns.length - 5} more</TableHead>
@@ -441,7 +402,6 @@ export default function ImportMembersPage() {
           </CardContent>
         </Card>
 
-        {/* Instructions Card */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Instructions</CardTitle>
@@ -450,8 +410,9 @@ export default function ImportMembersPage() {
             <div>
               <h4 className="text-sm font-medium mb-2">Required Columns</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Name</li>
-                <li>• Membership Number</li>
+                {REQUIRED_COLUMNS.map(col => (
+                  <li key={col}>• {col}</li>
+                ))}
               </ul>
             </div>
 
@@ -471,7 +432,6 @@ export default function ImportMembersPage() {
         </Card>
       </div>
 
-      {/* Import Results */}
       {results.length > 0 && (
         <Card>
           <CardHeader>
@@ -502,9 +462,8 @@ export default function ImportMembersPage() {
         </Card>
       )}
 
-      {/* Actions */}
       <div className="flex justify-end gap-4">
-        <Button variant="outline" onClick={() => router.push("/members")}>
+        <Button variant="outline" onClick={() => router.push("/matrimony")}>
           Cancel
         </Button>
         <Button
@@ -514,7 +473,7 @@ export default function ImportMembersPage() {
           {importing && (
             <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           )}
-          Import {parsedData.length} Members
+          Import {parsedData.length} Profiles
         </Button>
       </div>
     </div>

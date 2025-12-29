@@ -34,6 +34,13 @@ const memberSchema = z.object({
   pincode: z.string().optional(),
   country: z.string().optional(),
   current_residence_same_as_address: z.boolean().default(true),
+  current_address: z.object({
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    pincode: z.string().optional(),
+    country: z.string().optional(),
+  }).optional(),
   mobile_number: z.string().optional(),
   date_of_birth: z.string().optional(),
   marriage_date: z.string().optional(),
@@ -65,6 +72,13 @@ export function MemberForm({ member, onSubmit, loading }: MemberFormProps) {
       pincode: member?.pincode || "",
       country: member?.country || "India",
       current_residence_same_as_address: member?.current_residence_same_as_address ?? true,
+      current_address: member?.current_address || {
+        street: "",
+        city: "",
+        state: "",
+        pincode: "",
+        country: "",
+      },
       mobile_number: member?.mobile_number || "",
       date_of_birth: member?.date_of_birth || "",
       marriage_date: member?.marriage_date || "",
@@ -107,25 +121,6 @@ export function MemberForm({ member, onSubmit, loading }: MemberFormProps) {
               <p className="text-sm text-muted-foreground mb-6">
                 Member photo will be auto-generated from initials
               </p>
-              
-              <Separator className="mb-6" />
-              
-              <div className="w-full space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Same address as residence</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Current residence is same as address
-                    </p>
-                  </div>
-                  <Switch
-                    checked={currentResidenceSame}
-                    onCheckedChange={(checked) =>
-                      setValue("current_residence_same_as_address", checked)
-                    }
-                  />
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -293,6 +288,80 @@ export function MemberForm({ member, onSubmit, loading }: MemberFormProps) {
                 </div>
               </div>
             </div>
+
+            <Separator />
+
+            {/* Same Address as Residence */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Same Address as Residence</Label>
+                <p className="text-xs text-muted-foreground">
+                  Current residence is same as address
+                </p>
+              </div>
+              <Switch
+                checked={currentResidenceSame}
+                onCheckedChange={(checked) =>
+                  setValue("current_residence_same_as_address", checked)
+                }
+              />
+            </div>
+
+            {/* Current Address (shown when switch is off) */}
+            {!currentResidenceSame && (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="text-sm font-medium mb-4">Current Address</h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="current_address_street">Street</Label>
+                      <Input
+                        id="current_address_street"
+                        {...register("current_address.street")}
+                        placeholder="Street address"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="current_address_city">City</Label>
+                      <Input
+                        id="current_address_city"
+                        {...register("current_address.city")}
+                        placeholder="City"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="current_address_state">State</Label>
+                      <Input
+                        id="current_address_state"
+                        {...register("current_address.state")}
+                        placeholder="State"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="current_address_pincode">Pincode</Label>
+                      <Input
+                        id="current_address_pincode"
+                        {...register("current_address.pincode")}
+                        placeholder="Pincode"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="current_address_country">Country</Label>
+                      <Input
+                        id="current_address_country"
+                        {...register("current_address.country")}
+                        placeholder="Country"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             <Separator />
 
