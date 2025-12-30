@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Users, Calendar, FileText, Heart } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { format, formatDistanceToNow } from "date-fns"
 import { useAuthStore } from "@/lib/stores/auth.store"
 import { WelcomeBanner } from "@/components/dashboard/welcome-banner"
 import { StatWidget, SimpleStat } from "@/components/dashboard/stat-widget"
@@ -9,6 +11,10 @@ import { AreaChart } from "@/components/dashboard/area-chart"
 import { DonutChart } from "@/components/dashboard/donut-chart"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { http } from "@/lib/http"
+import { MembersService } from "@/lib/services/members.service"
+import { EventsService } from "@/lib/services/events.service"
+import type { ChurchMember } from "@/lib/types/member"
+import type { Event } from "@/lib/types/event"
 
 const sparklineData = [
   { value: 15 }, { value: 18 }, { value: 12 }, { value: 25 },
@@ -25,13 +31,18 @@ export default function DashboardPage() {
   })
   const [memberGrowth, setMemberGrowth] = useState<any[]>([])
   const [membersByAge, setMembersByAge] = useState<any[]>([])
+  const [recentMembers, setRecentMembers] = useState<ChurchMember[]>([])
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const statsRes = await http.get("/admin/stats")
+        setLoading(true)
         
+        // Fetch stats
+        const statsRes = await http.get("/admin/stats")
         if (statsRes.data) {
           const data = statsRes.data
           setStats({
@@ -43,14 +54,24 @@ export default function DashboardPage() {
           setMemberGrowth(data.member_growth || [])
           setMembersByAge(data.members_by_age || [])
         }
+
+        // Fetch recent members (last 5)
+        const membersRes = await MembersService.getAll(1, 5)
+        setRecentMembers(membersRes.church_members || [])
+
+        // Fetch upcoming events (next 5) - exclude recurring events
+        const eventsRes = await EventsService.getAll(1, 10, { upcoming: true })
+        // Filter out events that came from recurring events (source_recurring_event_id is null)
+        const oneTimeEvents = (eventsRes.events || []).filter(event => !event.source_recurring_event_id).slice(0, 5)
+        setUpcomingEvents(oneTimeEvents)
       } catch (error) {
-        console.error("Failed to fetch stats:", error)
+        console.error("Failed to fetch dashboard data:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchStats()
+    fetchDashboardData()
   }, [])
 
   const userName = user?.user?.email?.split("@")[0] || user?.user?.username || "Admin"
@@ -154,20 +175,39 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Recent Members</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                    <Users className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">Member {i}</p>
-                    <p className="text-xs text-muted-foreground">Joined recently</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{i}d ago</span>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : recentMembers.length > 0 ? (
+              <div className="space-y-4">
+                {recentMembers.map((member) => {
+                  const timeAgo = member.created_at 
+                    ? formatDistanceToNow(new Date(member.created_at), { addSuffix: true })
+                    : "Recently"
+                  return (
+                    <div 
+                      key={member.id} 
+                      className="flex items-center gap-4 cursor-pointer hover:bg-muted/50 p-2 rounded-lg -mx-2 transition-colors"
+                      onClick={() => router.push(`/members/detail?id=${member.id}`)}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <Users className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{member.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {member.membership_number ? `#${member.membership_number}` : "Member"}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No recent members</p>
+            )}
           </CardContent>
         </Card>
 
@@ -176,28 +216,40 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Upcoming Events</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: "Sunday Service", date: "Sun, 10:00 AM", type: "Weekly" },
-                { name: "Bible Study", date: "Wed, 7:00 PM", type: "Weekly" },
-                { name: "Youth Meeting", date: "Fri, 6:00 PM", type: "Weekly" },
-                { name: "Prayer Meeting", date: "Sat, 6:00 AM", type: "Weekly" },
-                { name: "Special Service", date: "Dec 31, 11:00 PM", type: "One-time" },
-              ].map((event, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10">
-                    <Calendar className="h-4 w-4 text-blue-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{event.name}</p>
-                    <p className="text-xs text-muted-foreground">{event.date}</p>
-                  </div>
-                  <span className="text-xs px-2 py-1 rounded-full bg-muted">
-                    {event.type}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : upcomingEvents.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingEvents.map((event) => {
+                  const eventDate = event.event_date ? new Date(event.event_date) : null
+                  const dateStr = eventDate 
+                    ? format(eventDate, "EEE, MMM d")
+                    : "TBD"
+                  const timeStr = event.event_time || ""
+                  const displayDate = timeStr ? `${dateStr}, ${timeStr}` : dateStr
+                  
+                  return (
+                    <div 
+                      key={event.id} 
+                      className="flex items-center gap-4 cursor-pointer hover:bg-muted/50 p-2 rounded-lg -mx-2 transition-colors"
+                      onClick={() => router.push(`/events/detail?id=${event.id}`)}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10">
+                        <Calendar className="h-4 w-4 text-blue-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{event.title}</p>
+                        <p className="text-xs text-muted-foreground">{displayDate}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No upcoming events</p>
+            )}
           </CardContent>
         </Card>
       </div>
