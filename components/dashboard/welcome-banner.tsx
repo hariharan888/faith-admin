@@ -21,12 +21,13 @@ export function WelcomeBanner({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#1a2332] to-[#0f1722] p-6 md:p-8",
-        "border border-white/5",
+        "relative overflow-hidden rounded-2xl p-6 md:p-8",
+        "bg-gradient-to-r from-primary/10 to-primary/5 dark:from-[#1a2332] dark:to-[#0f1722]",
+        "border border-border dark:border-white/5",
         className
       )}
       style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
       }}
     >
       {/* Gradient overlay */}
@@ -35,11 +36,11 @@ export function WelcomeBanner({
       {/* Content */}
       <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex-1">
-          <h2 className="text-xl md:text-2xl font-bold text-white mb-2 whitespace-pre-line">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground dark:text-white mb-2 whitespace-pre-line">
             {title}
           </h2>
           {description && (
-            <p className="text-sm text-gray-400 max-w-md">
+            <p className="text-sm text-muted-foreground dark:text-gray-400 max-w-md">
               {description}
             </p>
           )}

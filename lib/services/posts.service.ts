@@ -2,9 +2,20 @@ import { http } from "@/lib/http"
 import type { Post, PostFormData } from "@/lib/types/post"
 
 export const PostsService = {
-  async getAll(): Promise<Post[]> {
-    const response = await http.get("/admin/posts")
-    return response.data.posts || []
+  async getAll(page = 1, perPage = 20, filters?: { status?: string; search?: string }): Promise<{ posts: Post[]; total_count: number; pagination: any }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    })
+    if (filters?.status) params.append("status", filters.status)
+    if (filters?.search) params.append("search", filters.search)
+    
+    const response = await http.get(`/admin/posts?${params.toString()}`)
+    return {
+      posts: response.data.posts || [],
+      total_count: response.data.total_count || 0,
+      pagination: response.data.pagination || {}
+    }
   },
 
   async getById(id: number): Promise<Post> {

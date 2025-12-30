@@ -40,11 +40,6 @@ const navData: NavSectionType[] = [
         title: "Members",
         href: "/members",
         icon: <Users className="h-5 w-5" />,
-        children: [
-          { title: "List", href: "/members" },
-          { title: "Create", href: "/members/new" },
-          { title: "Import CSV", href: "/members/import" },
-        ],
       },
       {
         title: "Events",
@@ -52,28 +47,18 @@ const navData: NavSectionType[] = [
         icon: <Calendar className="h-5 w-5" />,
         children: [
           { title: "Upcoming", href: "/events" },
-          { title: "Create Event", href: "/events/new" },
           { title: "Recurring", href: "/events/recurring" },
-          { title: "Create Recurring", href: "/events/recurring/new" },
         ],
       },
       {
         title: "Posts",
         href: "/posts",
         icon: <FileText className="h-5 w-5" />,
-        children: [
-          { title: "List", href: "/posts" },
-          { title: "Create", href: "/posts/new" },
-        ],
       },
       {
         title: "Matrimony",
         href: "/matrimony",
         icon: <Heart className="h-5 w-5" />,
-        children: [
-          { title: "Profiles", href: "/matrimony" },
-          { title: "Import CSV", href: "/matrimony/import" },
-        ],
       },
     ],
   },

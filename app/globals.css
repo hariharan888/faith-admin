@@ -42,14 +42,14 @@
     --chart-4: 291 64% 42%;
     --chart-5: 0 84% 60%;
     
-    /* Sidebar */
-    --sidebar-background: 220 13% 18%;
-    --sidebar-foreground: 220 9% 46%;
+    /* Sidebar - Light mode */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 13% 13%;
     --sidebar-primary: 162 93% 33%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 13% 23%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 13% 23%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 220 13% 13%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 162 93% 33%;
     
     /* Layout variables */

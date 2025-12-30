@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Users, Calendar, FileText, Heart, TrendingUp, TrendingDown } from "lucide-react"
+import { Users, Calendar, FileText, Heart } from "lucide-react"
 import { useAuthStore } from "@/lib/stores/auth.store"
 import { WelcomeBanner } from "@/components/dashboard/welcome-banner"
 import { StatWidget, SimpleStat } from "@/components/dashboard/stat-widget"
@@ -9,29 +9,6 @@ import { AreaChart } from "@/components/dashboard/area-chart"
 import { DonutChart } from "@/components/dashboard/donut-chart"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { http } from "@/lib/http"
-
-// Mock data for charts
-const memberGrowthData = [
-  { month: "Jan", members: 120, newMembers: 8 },
-  { month: "Feb", members: 128, newMembers: 12 },
-  { month: "Mar", members: 140, newMembers: 15 },
-  { month: "Apr", members: 155, newMembers: 10 },
-  { month: "May", members: 165, newMembers: 18 },
-  { month: "Jun", members: 183, newMembers: 14 },
-  { month: "Jul", members: 197, newMembers: 20 },
-  { month: "Aug", members: 217, newMembers: 16 },
-  { month: "Sep", members: 233, newMembers: 22 },
-  { month: "Oct", members: 255, newMembers: 19 },
-  { month: "Nov", members: 274, newMembers: 25 },
-  { month: "Dec", members: 299, newMembers: 21 },
-]
-
-const eventAttendanceData = [
-  { name: "Sunday Service", value: 450, color: "hsl(162, 93%, 33%)" },
-  { name: "Bible Study", value: 120, color: "hsl(199, 89%, 48%)" },
-  { name: "Youth Meeting", value: 85, color: "hsl(43, 96%, 56%)" },
-  { name: "Prayer Meeting", value: 65, color: "hsl(291, 64%, 42%)" },
-]
 
 const sparklineData = [
   { value: 15 }, { value: 18 }, { value: 12 }, { value: 25 },
@@ -44,58 +21,28 @@ export default function DashboardPage() {
     members: { total: 0, newThisMonth: 0, change: 0 },
     events: { upcoming: 0, recurring: 0, change: 0 },
     posts: { published: 0, draft: 0, change: 0 },
-    matrimony: { pending: 0, approved: 0, rejected: 0 },
+    matrimony: { pending: 0, approved: 0, rejected: 0, change: 0 },
   })
+  const [memberGrowth, setMemberGrowth] = useState<any[]>([])
+  const [membersByAge, setMembersByAge] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedYear, setSelectedYear] = useState("2024")
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [membersRes, eventsRes, recurringRes, postsRes, matrimonyRes] = await Promise.allSettled([
-          http.get("/admin/church_members"),
-          http.get("/admin/events?upcoming=true"),
-          http.get("/admin/recurring_events"),
-          http.get("/admin/posts"),
-          http.get("/matrimony/admins/profiles"),
-        ])
-
-        const newStats = { ...stats }
-
-        if (membersRes.status === "fulfilled") {
-          const members = membersRes.value.data.church_members || []
-          newStats.members.total = members.length
-          const thisMonth = new Date()
-          thisMonth.setDate(1)
-          const newThisMonth = members.filter(
-            (m: any) => new Date(m.created_at) >= thisMonth
-          ).length
-          newStats.members.newThisMonth = newThisMonth
-          newStats.members.change = newThisMonth > 0 ? Math.round((newThisMonth / Math.max(members.length, 1)) * 100) : 0
+        const statsRes = await http.get("/admin/stats")
+        
+        if (statsRes.data) {
+          const data = statsRes.data
+          setStats({
+            members: data.members || { total: 0, newThisMonth: 0, change: 0 },
+            events: data.events || { upcoming: 0, recurring: 0, change: 0 },
+            posts: data.posts || { published: 0, draft: 0, change: 0 },
+            matrimony: data.matrimony || { pending: 0, approved: 0, rejected: 0, change: 0 },
+          })
+          setMemberGrowth(data.member_growth || [])
+          setMembersByAge(data.members_by_age || [])
         }
-
-        if (eventsRes.status === "fulfilled") {
-          newStats.events.upcoming = eventsRes.value.data.events?.length || 0
-        }
-
-        if (recurringRes.status === "fulfilled") {
-          newStats.events.recurring = recurringRes.value.data.recurring_events?.length || 0
-        }
-
-        if (postsRes.status === "fulfilled") {
-          const posts = postsRes.value.data.posts || []
-          newStats.posts.published = posts.filter((p: any) => p.status === "published").length
-          newStats.posts.draft = posts.filter((p: any) => p.status === "draft").length
-        }
-
-        if (matrimonyRes.status === "fulfilled") {
-          const profiles = matrimonyRes.value.data.profiles || []
-          newStats.matrimony.pending = profiles.filter((p: any) => p.profile_status === "pending_approval").length
-          newStats.matrimony.approved = profiles.filter((p: any) => p.profile_status === "approved").length
-          newStats.matrimony.rejected = profiles.filter((p: any) => p.profile_status === "rejected").length
-        }
-
-        setStats(newStats)
       } catch (error) {
         console.error("Failed to fetch stats:", error)
       } finally {
@@ -130,21 +77,21 @@ export default function DashboardPage() {
         <StatWidget
           title="Upcoming Events"
           value={stats.events.upcoming}
-          change={12}
+          change={stats.events.change}
           chartData={sparklineData.map(d => ({ value: d.value + 5 }))}
           chartColor="hsl(199, 89%, 48%)"
         />
         <StatWidget
           title="Published Posts"
           value={stats.posts.published}
-          change={-5}
+          change={stats.posts.change}
           chartData={sparklineData.map(d => ({ value: d.value - 3 }))}
           chartColor="hsl(43, 96%, 56%)"
         />
         <StatWidget
           title="Matrimony Profiles"
           value={stats.matrimony.approved}
-          change={8}
+          change={stats.matrimony.change}
           chartData={sparklineData.map(d => ({ value: d.value + 2 }))}
           chartColor="hsl(291, 64%, 42%)"
         />
@@ -154,23 +101,19 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <AreaChart
           title="Member Growth"
-          subtitle="Monthly membership trends"
-          data={memberGrowthData}
+          subtitle="Membership trends by year"
+          data={memberGrowth}
           series={[
-            { name: "Total Members", dataKey: "members", color: "hsl(162, 93%, 33%)" },
-            { name: "New Members", dataKey: "newMembers", color: "hsl(199, 89%, 48%)" },
+            { name: "Total Members", dataKey: "total_members", color: "hsl(162, 93%, 33%)" },
+            { name: "New Members", dataKey: "new_members", color: "hsl(199, 89%, 48%)" },
           ]}
-          xAxisKey="month"
-          showYearSelector
-          years={["2022", "2023", "2024"]}
-          selectedYear={selectedYear}
-          onYearChange={setSelectedYear}
+          xAxisKey="year"
           className="lg:col-span-2"
         />
         <DonutChart
-          title="Event Attendance"
-          subtitle="By service type"
-          data={eventAttendanceData}
+          title="Members by Age"
+          subtitle="Age distribution"
+          data={membersByAge}
         />
       </div>
 

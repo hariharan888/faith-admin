@@ -21,16 +21,36 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [pagination.current_page])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.current_page === 1) {
+        fetchData()
+      } else {
+        setPagination({ ...pagination, current_page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const eventsData = await EventsService.getAll(true)
-      setEvents(eventsData)
+      const filters: any = { upcoming: true }
+      if (searchQuery) filters.search = searchQuery
+
+      const result = await EventsService.getAll(pagination.current_page, pagination.per_page, filters)
+      setEvents(result.events)
+      setTotalCount(result.total_count)
+      setPagination(result.pagination)
     } catch (error) {
       console.error("Failed to fetch events:", error)
       toast({
@@ -49,11 +69,11 @@ export default function EventsPage() {
     try {
       setDeleting(true)
       await EventsService.delete(deleteId)
-      setEvents(events.filter((e) => e.id !== deleteId))
       toast({
         title: "Success",
         description: "Event deleted successfully",
       })
+      fetchData()
     } catch (error) {
       toast({
         title: "Error",
@@ -165,6 +185,13 @@ export default function EventsPage() {
           searchKey="title"
           searchPlaceholder="Search events..."
           onRowClick={(row) => router.push(`/events/detail?id=${row.id}`)}
+          serverPagination={{
+            currentPage: pagination.current_page,
+            totalPages: pagination.total_pages,
+            totalCount: totalCount,
+            onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+          }}
+          onSearchChange={(search) => setSearchQuery(search)}
         />
       )}
 

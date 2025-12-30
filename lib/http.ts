@@ -51,6 +51,7 @@ export interface RequestConfig {
   data?: any;
   headers?: Record<string, string>;
   requireAuth?: boolean; // Default: true
+  responseType?: 'json' | 'blob'; // Default: 'json'
 }
 
 // 401 Handler for automatic logout and redirect
@@ -116,13 +117,14 @@ class HttpClient {
    * Main HTTP request method
    * Automatically handles authentication, headers, and error handling
    */
-  async request<T = any>(config: RequestConfig): Promise<ApiResponse<T>> {
+  async request<T = any>(config: RequestConfig): Promise<ApiResponse<T> | Response> {
     const {
       method,
       url,
       data,
       headers = {},
       requireAuth = true,
+      responseType = 'json',
     } = config;
 
     // Build full URL
@@ -168,7 +170,6 @@ class HttpClient {
 
     try {
       const response = await fetch(fullUrl, requestOptions);
-      const responseData = await response.json();
 
       // Handle HTTP errors
       if (!response.ok) {
@@ -177,17 +178,33 @@ class HttpClient {
           handleUnauthorized();
         }
         
+        // Try to parse error as JSON, fallback to blob
+        let errorData: any;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { status: { code: 'HTTP_ERROR', message: `HTTP ${response.status} Error` } };
+        }
+        
         const error: ApiError = {
           status: {
             http_code: response.status,
-            code: responseData.status?.code || 'HTTP_ERROR',
-            message: responseData.status?.message || `HTTP ${response.status} Error`,
+            code: errorData.status?.code || 'HTTP_ERROR',
+            message: errorData.status?.message || `HTTP ${response.status} Error`,
           },
-          data: responseData.data,
+          data: errorData.data,
         };
         clog.error(`HTTP Error ${response.status}`, error);
         throw error;
       }
+
+      // Handle blob responses
+      if (responseType === 'blob') {
+        return response as any;
+      }
+
+      // Parse JSON response
+      const responseData = await response.json();
 
       // Return response as-is since Rails API uses snake_case consistently
       const apiResponse = {

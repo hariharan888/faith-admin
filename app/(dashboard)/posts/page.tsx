@@ -27,16 +27,38 @@ export default function PostsPage() {
   const [deleting, setDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
   const [viewMode, setViewMode] = useState<"grid" | "list">("list")
+  const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     fetchPosts()
-  }, [])
+  }, [activeTab, pagination.current_page])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.current_page === 1) {
+        fetchPosts()
+      } else {
+        setPagination({ ...pagination, current_page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const fetchPosts = async () => {
     try {
       setLoading(true)
-      const data = await PostsService.getAll()
-      setPosts(data)
+      const filters: any = {}
+      if (activeTab === "published") filters.status = "published"
+      if (activeTab === "draft") filters.status = "draft"
+      if (searchQuery) filters.search = searchQuery
+
+      const result = await PostsService.getAll(pagination.current_page, pagination.per_page, filters)
+      setPosts(result.posts)
+      setTotalCount(result.total_count)
+      setPagination(result.pagination)
     } catch (error) {
       console.error("Failed to fetch posts:", error)
       toast({
@@ -55,11 +77,11 @@ export default function PostsPage() {
     try {
       setDeleting(true)
       await PostsService.delete(deleteId)
-      setPosts(posts.filter((p) => p.id !== deleteId))
       toast({
         title: "Success",
         description: "Post deleted successfully",
       })
+      fetchPosts()
     } catch (error) {
       toast({
         title: "Error",
@@ -72,22 +94,10 @@ export default function PostsPage() {
     }
   }
 
-  const filteredPosts = useMemo(() => {
-    switch (activeTab) {
-      case "published":
-        return posts.filter((p) => p.status === "published")
-      case "draft":
-        return posts.filter((p) => p.status === "draft")
-      default:
-        return posts
-    }
-  }, [posts, activeTab])
-
-  const tabCounts = useMemo(() => ({
-    all: posts.length,
-    published: posts.filter((p) => p.status === "published").length,
-    draft: posts.filter((p) => p.status === "draft").length,
-  }), [posts])
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    setPagination({ ...pagination, current_page: 1 })
+  }
 
   const columns: ColumnDef<Post>[] = [
     {
@@ -169,17 +179,11 @@ export default function PostsPage() {
       />
 
       <div className="flex items-center justify-between">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
-            <TabsTrigger value="all" className="gap-2">
-              All <Badge variant="secondary" className="ml-1">{tabCounts.all}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="published" className="gap-2">
-              Published <Badge variant="secondary" className="ml-1">{tabCounts.published}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="draft" className="gap-2">
-              Drafts <Badge variant="secondary" className="ml-1">{tabCounts.draft}</Badge>
-            </TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="published">Published</TabsTrigger>
+            <TabsTrigger value="draft">Drafts</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -204,14 +208,21 @@ export default function PostsPage() {
       ) : viewMode === "list" ? (
         <DataTable
           columns={columns}
-          data={filteredPosts}
+          data={posts}
           searchKey="title"
           searchPlaceholder="Search posts..."
           onRowClick={(row) => router.push(`/posts/detail?id=${row.id}`)}
+          serverPagination={{
+            currentPage: pagination.current_page,
+            totalPages: pagination.total_pages,
+            totalCount: totalCount,
+            onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+          }}
+          onSearchChange={(search) => setSearchQuery(search)}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredPosts.map((post) => (
+          {posts.map((post) => (
             <Card
               key={post.id}
               className="cursor-pointer transition-shadow hover:shadow-lg"
@@ -236,7 +247,7 @@ export default function PostsPage() {
               </CardContent>
             </Card>
           ))}
-          {filteredPosts.length === 0 && (
+          {posts.length === 0 && (
             <div className="col-span-full text-center py-12 text-muted-foreground">
               No posts found
             </div>

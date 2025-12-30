@@ -12,7 +12,8 @@ import { StatusLabel } from "@/components/shared/status-label"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Upload } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Upload, Download } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -45,16 +46,37 @@ export default function MatrimonyPage() {
     reason: "",
   })
   const [actionLoading, setActionLoading] = useState(false)
+  const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     fetchProfiles()
-  }, [])
+  }, [statusFilter, pagination.current_page])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.current_page === 1) {
+        fetchProfiles()
+      } else {
+        setPagination({ ...pagination, current_page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const fetchProfiles = async () => {
     try {
       setLoading(true)
-      const data = await MatrimonyService.getAll()
-      setProfiles(data)
+      const filters: any = {}
+      if (statusFilter !== "all") filters.status = statusFilter
+      if (searchQuery) filters.search = searchQuery
+
+      const result = await MatrimonyService.getAll(pagination.current_page, pagination.per_page, filters)
+      setProfiles(result.profiles)
+      setTotalCount(result.total_count)
+      setPagination(result.pagination)
     } catch (error) {
       console.error("Failed to fetch profiles:", error)
       toast({
@@ -71,13 +93,11 @@ export default function MatrimonyPage() {
     try {
       setActionLoading(true)
       await MatrimonyService.approve(id)
-      setProfiles(profiles.map((p) =>
-        p.id === id ? { ...p, profile_status: "approved" as const } : p
-      ))
       toast({
         title: "Success",
         description: "Profile approved successfully",
       })
+      fetchProfiles()
     } catch (error) {
       toast({
         title: "Error",
@@ -95,16 +115,12 @@ export default function MatrimonyPage() {
     try {
       setActionLoading(true)
       await MatrimonyService.reject(rejectDialog.profileId, rejectDialog.reason)
-      setProfiles(profiles.map((p) =>
-        p.id === rejectDialog.profileId 
-          ? { ...p, profile_status: "rejected" as const, rejection_reason: rejectDialog.reason } 
-          : p
-      ))
       toast({
         title: "Success",
         description: "Profile rejected",
       })
       setRejectDialog({ open: false, profileId: null, reason: "" })
+      fetchProfiles()
     } catch (error) {
       toast({
         title: "Error",
@@ -122,11 +138,11 @@ export default function MatrimonyPage() {
     try {
       setDeleting(true)
       await MatrimonyService.delete(deleteId)
-      setProfiles(profiles.filter((p) => p.id !== deleteId))
       toast({
         title: "Success",
         description: "Profile deleted successfully",
       })
+      fetchProfiles()
     } catch (error) {
       toast({
         title: "Error",
@@ -139,18 +155,35 @@ export default function MatrimonyPage() {
     }
   }
 
-  const filteredProfiles = useMemo(() => {
-    if (statusFilter === "all") return profiles
-    return profiles.filter((p) => p.profile_status === statusFilter)
-  }, [profiles, statusFilter])
+  const handleExport = async () => {
+    try {
+      const response = await MatrimonyService.export()
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `matrimony_profiles_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast({
+        title: "Success",
+        description: "Profiles exported successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export profiles",
+        variant: "destructive",
+      })
+    }
+  }
 
-  const statusCounts = useMemo(() => ({
-    all: profiles.length,
-    pending_approval: profiles.filter((p) => p.profile_status === "pending_approval").length,
-    approved: profiles.filter((p) => p.profile_status === "approved").length,
-    rejected: profiles.filter((p) => p.profile_status === "rejected").length,
-    draft: profiles.filter((p) => p.profile_status === "draft").length,
-  }), [profiles])
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+    setPagination({ ...pagination, current_page: 1 })
+  }
 
   const columns: ColumnDef<MatrimonyProfile>[] = [
     {
@@ -291,68 +324,51 @@ export default function MatrimonyPage() {
           { label: "Matrimony" },
         ]}
         actions={
-          <Button variant="outline" onClick={() => router.push("/matrimony/import")}>
-            <Upload className="mr-2 h-4 w-4" />
-            Import CSV
-          </Button>
+          <>
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/matrimony/import")}>
+              <Upload className="mr-2 h-4 w-4" />
+              Import CSV
+            </Button>
+          </>
         }
       />
 
-      {/* Status Filter */}
-      <div className="flex gap-2 flex-wrap">
-        <Button
-          variant={statusFilter === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStatusFilter("all")}
-        >
-          All <Badge variant="secondary" className="ml-1">{statusCounts.all}</Badge>
-        </Button>
-        <Button
-          variant={statusFilter === "pending_approval" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStatusFilter("pending_approval")}
-        >
-          Pending
-          {statusCounts.pending_approval > 0 && (
-            <Badge variant="destructive" className="ml-1">{statusCounts.pending_approval}</Badge>
-          )}
-        </Button>
-        <Button
-          variant={statusFilter === "approved" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStatusFilter("approved")}
-        >
-          Approved <Badge variant="secondary" className="ml-1">{statusCounts.approved}</Badge>
-        </Button>
-        <Button
-          variant={statusFilter === "rejected" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStatusFilter("rejected")}
-        >
-          Rejected <Badge variant="secondary" className="ml-1">{statusCounts.rejected}</Badge>
-        </Button>
-        <Button
-          variant={statusFilter === "draft" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setStatusFilter("draft")}
-        >
-          Draft <Badge variant="secondary" className="ml-1">{statusCounts.draft}</Badge>
-        </Button>
-      </div>
+      <Tabs value={statusFilter} onValueChange={handleStatusFilterChange}>
+        <TabsList>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="pending_approval">Pending</TabsTrigger>
+          <TabsTrigger value="approved">Approved</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          <TabsTrigger value="draft">Draft</TabsTrigger>
+        </TabsList>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={filteredProfiles}
-          searchKey="name"
-          searchPlaceholder="Search profiles..."
-          onRowClick={(row) => router.push(`/matrimony/detail?id=${row.id}`)}
-        />
-      )}
+        <TabsContent value={statusFilter} className="mt-6">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={profiles}
+              searchKey="name"
+              searchPlaceholder="Search profiles..."
+              onRowClick={(row) => router.push(`/matrimony/detail?id=${row.id}`)}
+              serverPagination={{
+                currentPage: pagination.current_page,
+                totalPages: pagination.total_pages,
+                totalCount: totalCount,
+                onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+              }}
+              onSearchChange={(search) => setSearchQuery(search)}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Delete Confirmation */}
       <ConfirmDialog

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Plus, Upload, Edit, Trash2, Eye, Phone, Mail } from "lucide-react"
+import { Plus, Upload, Download, Edit, Trash2, Eye, Phone, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/breadcrumbs"
 import { DataTable, SortableHeader, RowActions } from "@/components/shared/data-table"
@@ -23,16 +23,40 @@ export default function MembersPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     fetchMembers()
-  }, [])
+  }, [activeTab, pagination.current_page])
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.current_page === 1) {
+        fetchMembers()
+      } else {
+        setPagination({ ...pagination, current_page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const fetchMembers = async () => {
     try {
       setLoading(true)
-      const data = await MembersService.getAll()
-      setMembers(data)
+      const filters: any = {}
+      if (activeTab === "male") filters.gender = "Male"
+      if (activeTab === "female") filters.gender = "Female"
+      if (activeTab === "married") filters.marital_status = "Married"
+      if (activeTab === "single") filters.marital_status = "Single"
+      if (searchQuery) filters.search = searchQuery
+
+      const result = await MembersService.getAll(pagination.current_page, pagination.per_page, filters)
+      setMembers(result.church_members)
+      setTotalCount(result.total_count)
+      setPagination(result.pagination)
     } catch (error) {
       console.error("Failed to fetch members:", error)
       toast({
@@ -51,11 +75,12 @@ export default function MembersPage() {
     try {
       setDeleting(true)
       await MembersService.delete(deleteId)
-      setMembers(members.filter((m) => m.id !== deleteId))
       toast({
         title: "Success",
         description: "Member deleted successfully",
       })
+      // Refresh the list
+      fetchMembers()
     } catch (error) {
       toast({
         title: "Error",
@@ -68,20 +93,35 @@ export default function MembersPage() {
     }
   }
 
-  const filteredMembers = useMemo(() => {
-    switch (activeTab) {
-      case "male":
-        return members.filter((m) => m.gender === "male")
-      case "female":
-        return members.filter((m) => m.gender === "female")
-      case "married":
-        return members.filter((m) => m.marital_status === "married")
-      case "single":
-        return members.filter((m) => m.marital_status === "single")
-      default:
-        return members
+  const handleExport = async () => {
+    try {
+      const response = await MembersService.export()
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `church_members_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast({
+        title: "Success",
+        description: "Members exported successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export members",
+        variant: "destructive",
+      })
     }
-  }, [members, activeTab])
+  }
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    setPagination({ ...pagination, current_page: 1 })
+  }
 
   const columns: ColumnDef<ChurchMember>[] = [
     {
@@ -180,14 +220,6 @@ export default function MembersPage() {
     },
   ]
 
-  const tabCounts = useMemo(() => ({
-    all: members.length,
-    male: members.filter((m) => m.gender === "male").length,
-    female: members.filter((m) => m.gender === "female").length,
-    married: members.filter((m) => m.marital_status === "married").length,
-    single: members.filter((m) => m.marital_status === "single").length,
-  }), [members])
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -198,6 +230,10 @@ export default function MembersPage() {
         ]}
         actions={
           <>
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
             <Button variant="outline" onClick={() => router.push("/members/import")}>
               <Upload className="mr-2 h-4 w-4" />
               Import CSV
@@ -210,23 +246,13 @@ export default function MembersPage() {
         }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="all" className="gap-2">
-            All <Badge variant="secondary" className="ml-1">{tabCounts.all}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="male" className="gap-2">
-            Male <Badge variant="secondary" className="ml-1">{tabCounts.male}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="female" className="gap-2">
-            Female <Badge variant="secondary" className="ml-1">{tabCounts.female}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="married" className="gap-2">
-            Married <Badge variant="secondary" className="ml-1">{tabCounts.married}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="single" className="gap-2">
-            Single <Badge variant="secondary" className="ml-1">{tabCounts.single}</Badge>
-          </TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="male">Male</TabsTrigger>
+          <TabsTrigger value="female">Female</TabsTrigger>
+          <TabsTrigger value="married">Married</TabsTrigger>
+          <TabsTrigger value="single">Single</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -237,10 +263,17 @@ export default function MembersPage() {
           ) : (
             <DataTable
               columns={columns}
-              data={filteredMembers}
+              data={members}
               searchKey="name"
               searchPlaceholder="Search members..."
               onRowClick={(row) => router.push(`/members/detail?id=${row.id}`)}
+              serverPagination={{
+                currentPage: pagination.current_page,
+                totalPages: pagination.total_pages,
+                totalCount: totalCount,
+                onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+              }}
+              onSearchChange={(search) => setSearchQuery(search)}
             />
           )}
         </TabsContent>

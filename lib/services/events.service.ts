@@ -2,10 +2,21 @@ import { http } from "@/lib/http"
 import type { Event, EventFormData, RecurringEvent, RecurringEventFormData } from "@/lib/types/event"
 
 export const EventsService = {
-  async getAll(upcoming?: boolean): Promise<Event[]> {
-    const params = upcoming ? "?upcoming=true" : ""
-    const response = await http.get(`/admin/events${params}`)
-    return response.data.events || []
+  async getAll(page = 1, perPage = 20, filters?: { upcoming?: boolean; status?: string; search?: string }): Promise<{ events: Event[]; total_count: number; pagination: any }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    })
+    if (filters?.upcoming) params.append("upcoming", "true")
+    if (filters?.status) params.append("status", filters.status)
+    if (filters?.search) params.append("search", filters.search)
+    
+    const response = await http.get(`/admin/events?${params.toString()}`)
+    return {
+      events: response.data.events || [],
+      total_count: response.data.total_count || 0,
+      pagination: response.data.pagination || {}
+    }
   },
 
   async getById(id: number): Promise<Event> {
@@ -29,9 +40,20 @@ export const EventsService = {
 }
 
 export const RecurringEventsService = {
-  async getAll(): Promise<RecurringEvent[]> {
-    const response = await http.get("/admin/recurring_events")
-    return response.data.recurring_events || []
+  async getAll(page = 1, perPage = 20, filters?: { status?: string; search?: string }): Promise<{ recurring_events: RecurringEvent[]; total_count: number; pagination: any }> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    })
+    if (filters?.status) params.append("status", filters.status)
+    if (filters?.search) params.append("search", filters.search)
+    
+    const response = await http.get(`/admin/recurring_events?${params.toString()}`)
+    return {
+      recurring_events: response.data.recurring_events || [],
+      total_count: response.data.total_count || 0,
+      pagination: response.data.pagination || {}
+    }
   },
 
   async getById(id: number): Promise<RecurringEvent> {

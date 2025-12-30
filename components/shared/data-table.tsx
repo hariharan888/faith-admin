@@ -45,6 +45,14 @@ interface DataTableProps<TData, TValue> {
   enableRowSelection?: boolean
   enablePagination?: boolean
   pageSize?: number
+  // Server-side pagination
+  serverPagination?: {
+    currentPage: number
+    totalPages: number
+    totalCount: number
+    onPageChange: (page: number) => void
+  }
+  onSearchChange?: (search: string) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -57,12 +65,20 @@ export function DataTable<TData, TValue>({
   enableRowSelection = false,
   enablePagination = true,
   pageSize = 10,
+  serverPagination,
+  onSearchChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
   const [globalFilter, setGlobalFilter] = React.useState("")
+  
+  // Handle search change for server-side
+  const handleSearchChange = (value: string) => {
+    setGlobalFilter(value)
+    onSearchChange?.(value)
+  }
 
   const table = useReactTable({
     data,
@@ -101,7 +117,7 @@ export function DataTable<TData, TValue>({
             <Input
               placeholder={searchPlaceholder}
               value={globalFilter ?? ""}
-              onChange={(event) => setGlobalFilter(event.target.value)}
+              onChange={(event) => handleSearchChange(event.target.value)}
               className="pl-9"
             />
           </div>
@@ -202,32 +218,64 @@ export function DataTable<TData, TValue>({
                 {table.getFilteredSelectedRowModel().rows.length} of{" "}
               </span>
             )}
-            {table.getFilteredRowModel().rows.length} row(s)
+            {serverPagination 
+              ? `${serverPagination.totalCount} row(s)`
+              : `${table.getFilteredRowModel().rows.length} row(s)`
+            }
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Previous
-            </Button>
-            <div className="flex items-center gap-1 text-sm">
-              <span>Page</span>
-              <strong>
-                {table.getState().pagination.pageIndex + 1} of{" "}
-                {table.getPageCount()}
-              </strong>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Next
-            </Button>
+            {serverPagination ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => serverPagination.onPageChange(serverPagination.currentPage - 1)}
+                  disabled={serverPagination.currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1 text-sm">
+                  <span>Page</span>
+                  <strong>
+                    {serverPagination.currentPage} of {serverPagination.totalPages}
+                  </strong>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => serverPagination.onPageChange(serverPagination.currentPage + 1)}
+                  disabled={serverPagination.currentPage >= serverPagination.totalPages}
+                >
+                  Next
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.previousPage()}
+                  disabled={!table.getCanPreviousPage()}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1 text-sm">
+                  <span>Page</span>
+                  <strong>
+                    {table.getState().pagination.pageIndex + 1} of{" "}
+                    {table.getPageCount()}
+                  </strong>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => table.nextPage()}
+                  disabled={!table.getCanNextPage()}
+                >
+                  Next
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -62,6 +62,8 @@ export function DonutChart({
                   borderRadius: "8px",
                   boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                 }}
+                labelStyle={{ color: "hsl(var(--foreground))" }}
+                itemStyle={{ color: "hsl(var(--foreground))" }}
                 formatter={(value: number) => [
                   `${((value / total) * 100).toFixed(1)}%`,
                   "Share",
