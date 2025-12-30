@@ -262,8 +262,9 @@ class HttpClient {
     return this.request<T>({ method: 'PATCH', url, data, requireAuth });
   }
 
-  async delete<T = any>(url: string, requireAuth = true): Promise<ApiResponse<T>> {
-    return this.request<T>({ method: 'DELETE', url, requireAuth });
+  async delete<T = any>(url: string, config?: { data?: any; requireAuth?: boolean }): Promise<ApiResponse<T>> {
+    const requireAuth = config?.requireAuth ?? true;
+    return this.request<T>({ method: 'DELETE', url, data: config?.data, requireAuth });
   }
 }
 

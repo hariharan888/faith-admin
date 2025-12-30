@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Check, X, Eye, Trash2, Edit, Heart, User } from "lucide-react"
+import { Eye, Trash2, Edit, Heart, User } from "lucide-react"
 import { format, differenceInYears } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/breadcrumbs"
@@ -14,16 +14,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, Download } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { MatrimonyService } from "@/lib/services/matrimony.service"
 import type { MatrimonyProfile } from "@/lib/types/matrimony"
 import { toast } from "@/hooks/use-toast"
@@ -36,19 +26,11 @@ export default function MatrimonyPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [rejectDialog, setRejectDialog] = useState<{
-    open: boolean
-    profileId: number | null
-    reason: string
-  }>({
-    open: false,
-    profileId: null,
-    reason: "",
-  })
-  const [actionLoading, setActionLoading] = useState(false)
   const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
   const [totalCount, setTotalCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedProfiles, setSelectedProfiles] = useState<MatrimonyProfile[]>([])
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchProfiles()
@@ -86,49 +68,6 @@ export default function MatrimonyPage() {
       })
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleApprove = async (id: number) => {
-    try {
-      setActionLoading(true)
-      await MatrimonyService.approve(id)
-      toast({
-        title: "Success",
-        description: "Profile approved successfully",
-      })
-      fetchProfiles()
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to approve profile",
-        variant: "destructive",
-      })
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleReject = async () => {
-    if (!rejectDialog.profileId || !rejectDialog.reason.trim()) return
-
-    try {
-      setActionLoading(true)
-      await MatrimonyService.reject(rejectDialog.profileId, rejectDialog.reason)
-      toast({
-        title: "Success",
-        description: "Profile rejected",
-      })
-      setRejectDialog({ open: false, profileId: null, reason: "" })
-      fetchProfiles()
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to reject profile",
-        variant: "destructive",
-      })
-    } finally {
-      setActionLoading(false)
     }
   }
 
@@ -183,6 +122,58 @@ export default function MatrimonyPage() {
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value)
     setPagination({ ...pagination, current_page: 1 })
+    setSelectedProfiles([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedProfiles.length === 0) return
+    
+    try {
+      setBulkDeleting(true)
+      const ids = selectedProfiles.map(p => p.id)
+      await MatrimonyService.bulkDelete(ids)
+      toast({
+        title: "Success",
+        description: `${selectedProfiles.length} profile(s) deleted successfully`,
+      })
+      setSelectedProfiles([])
+      fetchProfiles()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete profiles",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const handleBulkExport = async () => {
+    if (selectedProfiles.length === 0) return
+    
+    try {
+      const response = await MatrimonyService.export()
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `matrimony_profiles_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast({
+        title: "Success",
+        description: "Profiles exported successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export profiles",
+        variant: "destructive",
+      })
+    }
   }
 
   const columns: ColumnDef<MatrimonyProfile>[] = [
@@ -197,22 +188,20 @@ export default function MatrimonyPage() {
           .join("")
           .toUpperCase()
           .slice(0, 2)
-        const age = profile.date_of_birth
+        // Use age from API, fallback to calculating from date_of_birth
+        const age = profile.age ?? (profile.date_of_birth
           ? differenceInYears(new Date(), new Date(profile.date_of_birth))
-          : null
+          : null)
 
         return (
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              {profile.profile_photo_url ? (
-                <AvatarImage src={profile.profile_photo_url} alt={profile.name} />
-              ) : null}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div>
               <p className="font-medium">{profile.name}</p>
               <p className="text-xs text-muted-foreground">
-                {age && `${age} years`} • {profile.gender}
+                {age ? `${age} years` : ""} {age && profile.gender ? "•" : ""} {profile.gender}
               </p>
             </div>
           </div>
@@ -220,17 +209,21 @@ export default function MatrimonyPage() {
       },
     },
     {
-      accessorKey: "occupation",
+      accessorKey: "job_title",
       header: "Occupation",
-      cell: ({ row }) => row.original.occupation || "—",
+      cell: ({ row }) => row.original.job_title || row.original.job_type || "—",
     },
     {
-      accessorKey: "city",
+      accessorKey: "location",
       header: "Location",
       cell: ({ row }) => {
         const profile = row.original
-        const location = [profile.city, profile.state].filter(Boolean).join(", ")
-        return location || "—"
+        const address = profile.current_address
+        if (address) {
+          const location = [address.city, address.state].filter(Boolean).join(", ")
+          return location || "—"
+        }
+        return "—"
       },
     },
     {
@@ -251,64 +244,27 @@ export default function MatrimonyPage() {
       id: "actions",
       cell: ({ row }) => {
         const profile = row.original
-        const isPending = profile.profile_status === "pending_approval"
-        const canEdit = profile.profile_status !== "approved" // Only allow editing non-approved profiles
-
         return (
-          <div className="flex items-center gap-1">
-            {isPending && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-green-500 hover:text-green-600 hover:bg-green-500/10"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleApprove(profile.id)
-                  }}
-                  disabled={actionLoading}
-                >
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setRejectDialog({
-                      open: true,
-                      profileId: profile.id,
-                      reason: "",
-                    })
-                  }}
-                  disabled={actionLoading}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            <RowActions
-              actions={[
-                {
-                  label: "View",
-                  icon: <Eye className="h-4 w-4" />,
-                  onClick: () => router.push(`/matrimony/detail?id=${profile.id}`),
-                },
-                ...(canEdit ? [{
-                  label: "Edit",
-                  icon: <Edit className="h-4 w-4" />,
-                  onClick: () => router.push(`/matrimony/detail?id=${profile.id}&edit=true`),
-                }] : []),
-                {
-                  label: "Delete",
-                  icon: <Trash2 className="h-4 w-4" />,
-                  onClick: () => setDeleteId(profile.id),
-                  variant: "destructive",
-                },
-              ]}
-            />
-          </div>
+          <RowActions
+            actions={[
+              {
+                label: "View",
+                icon: <Eye className="h-4 w-4" />,
+                onClick: () => router.push(`/matrimony/detail?id=${profile.id}`),
+              },
+              {
+                label: "Edit",
+                icon: <Edit className="h-4 w-4" />,
+                onClick: () => router.push(`/matrimony/detail?id=${profile.id}&edit=true`),
+              },
+              {
+                label: "Delete",
+                icon: <Trash2 className="h-4 w-4" />,
+                onClick: () => setDeleteId(profile.id),
+                variant: "destructive",
+              },
+            ]}
+          />
         )
       },
     },
@@ -347,6 +303,33 @@ export default function MatrimonyPage() {
         </TabsList>
 
         <TabsContent value={statusFilter} className="mt-6">
+          {selectedProfiles.length > 0 && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+              <span className="text-sm font-medium">
+                {selectedProfiles.length} profile(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkExport}
+                  disabled={bulkDeleting}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Selected
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
@@ -358,6 +341,8 @@ export default function MatrimonyPage() {
               searchKey="name"
               searchPlaceholder="Search profiles..."
               onRowClick={(row) => router.push(`/matrimony/detail?id=${row.id}`)}
+              enableRowSelection={true}
+              onSelectionChange={setSelectedProfiles}
               serverPagination={{
                 currentPage: pagination.current_page,
                 totalPages: pagination.total_pages,
@@ -382,56 +367,6 @@ export default function MatrimonyPage() {
         onConfirm={handleDelete}
       />
 
-      {/* Reject Dialog */}
-      <Dialog
-        open={rejectDialog.open}
-        onOpenChange={(open) =>
-          !open && setRejectDialog({ open: false, profileId: null, reason: "" })
-        }
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Profile</DialogTitle>
-            <DialogDescription>
-              Please provide a reason for rejecting this profile. The user will be notified.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="reason">Rejection Reason</Label>
-              <Textarea
-                id="reason"
-                placeholder="Enter the reason for rejection..."
-                value={rejectDialog.reason}
-                onChange={(e) =>
-                  setRejectDialog((prev) => ({ ...prev, reason: e.target.value }))
-                }
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setRejectDialog({ open: false, profileId: null, reason: "" })
-              }
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={!rejectDialog.reason.trim() || actionLoading}
-            >
-              {actionLoading && (
-                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              )}
-              Reject Profile
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

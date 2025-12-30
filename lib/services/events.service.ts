@@ -37,6 +37,13 @@ export const EventsService = {
   async delete(id: number): Promise<void> {
     await http.delete(`/admin/events/${id}`)
   },
+
+  async bulkDelete(ids: number[]): Promise<{ message: string; count: number }> {
+    const response = await http.delete("/admin/events/bulk_destroy", {
+      data: { ids }
+    })
+    return response.data
+  },
 }
 
 export const RecurringEventsService = {
@@ -73,6 +80,13 @@ export const RecurringEventsService = {
 
   async delete(id: number): Promise<void> {
     await http.delete(`/admin/recurring_events/${id}`)
+  },
+
+  async bulkDelete(ids: number[]): Promise<{ message: string; count: number }> {
+    const response = await http.delete("/admin/recurring_events/bulk_destroy", {
+      data: { ids }
+    })
+    return response.data
   },
 
   async generateEvents(id: number): Promise<{ count: number }> {

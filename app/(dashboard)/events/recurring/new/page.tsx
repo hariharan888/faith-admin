@@ -50,8 +50,8 @@ export default function NewRecurringEventPage() {
   } = form
 
   const handleRRuleChange = useCallback((rrule: string, dtstart: string) => {
-    setValue("rrule", rrule)
-    setValue("dtstart", dtstart)
+    setValue("rrule", rrule, { shouldDirty: true, shouldValidate: false })
+    setValue("dtstart", dtstart, { shouldDirty: true, shouldValidate: false })
   }, [setValue])
 
   const onSubmit = async (data: RecurringEventFormData) => {

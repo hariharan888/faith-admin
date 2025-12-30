@@ -43,10 +43,10 @@ const navData: NavSectionType[] = [
       },
       {
         title: "Events",
-        href: "/events",
+        href: "/events/upcoming",
         icon: <Calendar className="h-5 w-5" />,
         children: [
-          { title: "Upcoming", href: "/events" },
+          { title: "Upcoming", href: "/events/upcoming" },
           { title: "Recurring", href: "/events/recurring" },
         ],
       },

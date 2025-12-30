@@ -3,40 +3,60 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
-import { Plus, Edit, Trash2, Eye, RefreshCw, Clock, MapPin } from "lucide-react"
+import { Plus, Edit, Trash2, Eye, Calendar, MapPin, Clock, RefreshCw } from "lucide-react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/shared/breadcrumbs"
 import { DataTable, SortableHeader, RowActions } from "@/components/shared/data-table"
 import { StatusLabel } from "@/components/shared/status-label"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { Card, CardContent } from "@/components/ui/card"
-import { RecurringEventsService } from "@/lib/services/events.service"
-import type { RecurringEvent } from "@/lib/types/event"
+import { EventsService } from "@/lib/services/events.service"
+import type { Event } from "@/lib/types/event"
 import { toast } from "@/hooks/use-toast"
 
-export default function RecurringEventsPage() {
+export default function UpcomingEventsPage() {
   const router = useRouter()
-  const [recurringEvents, setRecurringEvents] = useState<RecurringEvent[]>([])
+  const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [selectedEvents, setSelectedEvents] = useState<RecurringEvent[]>([])
+  const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
+  const [totalCount, setTotalCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedEvents, setSelectedEvents] = useState<Event[]>([])
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
-    fetchRecurringEvents()
-  }, [])
+    fetchData()
+  }, [pagination.current_page])
 
-  const fetchRecurringEvents = async () => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.current_page === 1) {
+        fetchData()
+      } else {
+        setPagination({ ...pagination, current_page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const result = await RecurringEventsService.getAll()
-      setRecurringEvents(result.recurring_events || [])
+      const filters: any = { upcoming: true }
+      if (searchQuery) filters.search = searchQuery
+
+      const result = await EventsService.getAll(pagination.current_page, pagination.per_page, filters)
+      setEvents(result.events)
+      setTotalCount(result.total_count)
+      setPagination(result.pagination)
     } catch (error) {
-      console.error("Failed to fetch recurring events:", error)
+      console.error("Failed to fetch events:", error)
       toast({
         title: "Error",
-        description: "Failed to load recurring events",
+        description: "Failed to load events",
         variant: "destructive",
       })
     } finally {
@@ -49,16 +69,16 @@ export default function RecurringEventsPage() {
     
     try {
       setDeleting(true)
-      await RecurringEventsService.delete(deleteId)
-      setRecurringEvents(recurringEvents.filter((e) => e.id !== deleteId))
+      await EventsService.delete(deleteId)
       toast({
         title: "Success",
-        description: "Recurring event deleted successfully",
+        description: "Event deleted successfully",
       })
+      fetchData()
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete recurring event",
+        description: "Failed to delete event",
         variant: "destructive",
       })
     } finally {
@@ -73,17 +93,17 @@ export default function RecurringEventsPage() {
     try {
       setBulkDeleting(true)
       const ids = selectedEvents.map(e => e.id)
-      await RecurringEventsService.bulkDelete(ids)
+      await EventsService.bulkDelete(ids)
       toast({
         title: "Success",
-        description: `${selectedEvents.length} recurring event(s) deleted successfully`,
+        description: `${selectedEvents.length} event(s) deleted successfully`,
       })
       setSelectedEvents([])
-      fetchRecurringEvents()
+      fetchData()
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete recurring events",
+        description: "Failed to delete events",
         variant: "destructive",
       })
     } finally {
@@ -91,7 +111,7 @@ export default function RecurringEventsPage() {
     }
   }
 
-  const recurringColumns: ColumnDef<RecurringEvent>[] = [
+  const eventColumns: ColumnDef<Event>[] = [
     {
       accessorKey: "title",
       header: ({ column }) => <SortableHeader column={column}>Title</SortableHeader>,
@@ -107,12 +127,12 @@ export default function RecurringEventsPage() {
       ),
     },
     {
-      accessorKey: "rrule",
-      header: "Recurrence",
+      accessorKey: "event_date",
+      header: ({ column }) => <SortableHeader column={column}>Date</SortableHeader>,
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm">{formatRRule(row.original.rrule)}</span>
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span>{format(new Date(row.original.event_date), "PPP")}</span>
         </div>
       ),
     },
@@ -139,12 +159,12 @@ export default function RecurringEventsPage() {
             {
               label: "View",
               icon: <Eye className="h-4 w-4" />,
-              onClick: () => router.push(`/events/recurring/detail?id=${row.original.id}`),
+              onClick: () => router.push(`/events/detail?id=${row.original.id}`),
             },
             {
               label: "Edit",
               icon: <Edit className="h-4 w-4" />,
-              onClick: () => router.push(`/events/recurring/detail?id=${row.original.id}&edit=true`),
+              onClick: () => router.push(`/events/detail?id=${row.original.id}&edit=true`),
             },
             {
               label: "Delete",
@@ -161,32 +181,36 @@ export default function RecurringEventsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Recurring Events"
+        title="Upcoming Events"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: "Events", href: "/events" },
-          { label: "Recurring" },
+          { label: "Events", href: "/events/upcoming" },
+          { label: "Upcoming" },
         ]}
         actions={
-          <Button onClick={() => router.push("/events/recurring/new")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Recurring Event
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => router.push("/events/recurring")}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Recurring Events
+            </Button>
+            <Button onClick={() => router.push("/events/new")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Event
+            </Button>
+          </>
         }
       />
 
       {loading ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto" />
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+        </div>
       ) : (
         <>
           {selectedEvents.length > 0 && (
             <div className="mb-4 flex items-center justify-between rounded-lg border bg-muted/50 p-3">
               <span className="text-sm font-medium">
-                {selectedEvents.length} recurring event(s) selected
+                {selectedEvents.length} event(s) selected
               </span>
               <Button
                 variant="destructive"
@@ -200,13 +224,20 @@ export default function RecurringEventsPage() {
             </div>
           )}
           <DataTable
-            columns={recurringColumns}
-            data={recurringEvents}
+            columns={eventColumns}
+            data={events}
             searchKey="title"
-            searchPlaceholder="Search recurring events..."
-            onRowClick={(row) => router.push(`/events/recurring/detail?id=${row.id}`)}
+            searchPlaceholder="Search events..."
+            onRowClick={(row) => router.push(`/events/detail?id=${row.id}`)}
             enableRowSelection={true}
             onSelectionChange={setSelectedEvents}
+            serverPagination={{
+              currentPage: pagination.current_page,
+              totalPages: pagination.total_pages,
+              totalCount: totalCount,
+              onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+            }}
+            onSearchChange={(search) => setSearchQuery(search)}
           />
         </>
       )}
@@ -214,8 +245,8 @@ export default function RecurringEventsPage() {
       <ConfirmDialog
         open={deleteId !== null}
         onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Delete Recurring Event"
-        description="Are you sure you want to delete this recurring event? This action cannot be undone."
+        title="Delete Event"
+        description="Are you sure you want to delete this event? This action cannot be undone."
         confirmLabel="Delete"
         variant="destructive"
         loading={deleting}
@@ -223,40 +254,5 @@ export default function RecurringEventsPage() {
       />
     </div>
   )
-}
-
-function formatRRule(rrule: string): string {
-  const parts = rrule.split(";")
-  const freq = parts.find((p) => p.startsWith("FREQ="))?.split("=")[1]
-  const interval = parts.find((p) => p.startsWith("INTERVAL="))?.split("=")[1] || "1"
-  const byday = parts.find((p) => p.startsWith("BYDAY="))?.split("=")[1]
-  
-  let text = ""
-  
-  switch (freq) {
-    case "DAILY":
-      text = interval === "1" ? "Daily" : `Every ${interval} days`
-      break
-    case "WEEKLY":
-      text = interval === "1" ? "Weekly" : `Every ${interval} weeks`
-      if (byday) {
-        const days: Record<string, string> = {
-          MO: "Mon", TU: "Tue", WE: "Wed", TH: "Thu", FR: "Fri", SA: "Sat", SU: "Sun"
-        }
-        const dayNames = byday.split(",").map(d => days[d] || d).join(", ")
-        text += ` on ${dayNames}`
-      }
-      break
-    case "MONTHLY":
-      text = interval === "1" ? "Monthly" : `Every ${interval} months`
-      break
-    case "YEARLY":
-      text = interval === "1" ? "Yearly" : `Every ${interval} years`
-      break
-    default:
-      text = rrule
-  }
-  
-  return text
 }
 

@@ -53,6 +53,8 @@ interface DataTableProps<TData, TValue> {
     onPageChange: (page: number) => void
   }
   onSearchChange?: (search: string) => void
+  onSelectionChange?: (selectedRows: TData[]) => void
+  getRowId?: (row: TData) => string | number
 }
 
 export function DataTable<TData, TValue>({
@@ -67,6 +69,8 @@ export function DataTable<TData, TValue>({
   pageSize = 10,
   serverPagination,
   onSearchChange,
+  onSelectionChange,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -80,9 +84,36 @@ export function DataTable<TData, TValue>({
     onSearchChange?.(value)
   }
 
+  // Ensure we have a valid getRowId function that never returns empty string
+  // Create a map to track row indices for fallback IDs
+  const rowIndexMap = React.useMemo(() => {
+    const map = new Map()
+    data.forEach((row, index) => {
+      const id = getRowId ? getRowId(row) : (row as any).id
+      const key = id?.toString() || `row-${index}`
+      map.set(row, key)
+    })
+    return map
+  }, [data, getRowId])
+
+  const getRowIdFn = React.useCallback((row: any) => {
+    if (getRowId) {
+      const id = getRowId(row)
+      if (id !== undefined && id !== null && id !== "") {
+        return id.toString()
+      }
+    }
+    if (row.id !== undefined && row.id !== null) {
+      return row.id.toString()
+    }
+    // Fallback to mapped ID
+    return rowIndexMap.get(row) || `row-${data.indexOf(row)}`
+  }, [getRowId, rowIndexMap, data])
+
   const table = useReactTable({
     data,
     columns,
+    getRowId: getRowIdFn,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -90,9 +121,17 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
+    onRowSelectionChange: (updater) => {
+      try {
+        const newSelection = typeof updater === 'function' ? updater(rowSelection) : updater
+        setRowSelection(newSelection)
+      } catch (error) {
+        console.error("Error updating row selection:", error)
+      }
+    },
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: "includesString",
+    enableRowSelection: enableRowSelection,
     state: {
       sorting,
       columnFilters,
@@ -106,6 +145,32 @@ export function DataTable<TData, TValue>({
       },
     },
   })
+
+  // Update parent when selection changes
+  React.useEffect(() => {
+    if (onSelectionChange && enableRowSelection) {
+      try {
+        const selectedRows = Object.keys(rowSelection)
+          .filter(key => rowSelection[key])
+          .map(key => {
+            const row = data.find((row: any) => {
+              try {
+                const rowId = getRowIdFn(row)
+                return rowId === key
+              } catch (error) {
+                console.error("Error getting row ID:", error)
+                return false
+              }
+            })
+            return row
+          })
+          .filter(Boolean) as TData[]
+        onSelectionChange(selectedRows)
+      } catch (error) {
+        console.error("Error updating selection:", error)
+      }
+    }
+  }, [rowSelection, data, onSelectionChange, enableRowSelection, getRowIdFn])
 
   return (
     <div className="space-y-4">
@@ -159,6 +224,15 @@ export function DataTable<TData, TValue>({
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
+                {enableRowSelection && (
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={table.getIsAllPageRowsSelected()}
+                      onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                )}
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
@@ -176,15 +250,44 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                  className={cn(
-                    onRowClick && "cursor-pointer hover:bg-muted/50"
-                  )}
-                  onClick={() => onRowClick?.(row.original)}
-                >
+              table.getRowModel().rows.map((row) => {
+                const rowId = getRowIdFn(row.original)
+                return (
+                  <TableRow
+                    key={rowId || row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                    className={cn(
+                      onRowClick && "cursor-pointer hover:bg-muted/50",
+                      row.getIsSelected() && "bg-muted/50"
+                    )}
+                    onClick={(e) => {
+                      if (enableRowSelection && (e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                        return // Don't trigger row click when clicking checkbox
+                      }
+                      onRowClick?.(row.original)
+                    }}
+                  >
+                    {enableRowSelection && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={row.getIsSelected()}
+                          onCheckedChange={(value) => {
+                            try {
+                              row.toggleSelected(!!value)
+                            } catch (error) {
+                              console.error("Error toggling row selection:", error)
+                              // Fallback: manually update selection
+                              const currentId = row.id
+                              setRowSelection((prev) => ({
+                                ...prev,
+                                [currentId]: !!value
+                              }))
+                            }
+                          }}
+                          aria-label="Select row"
+                        />
+                      </TableCell>
+                    )}
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
@@ -193,8 +296,9 @@ export function DataTable<TData, TValue>({
                       )}
                     </TableCell>
                   ))}
-                </TableRow>
-              ))
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell

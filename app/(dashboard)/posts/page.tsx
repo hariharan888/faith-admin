@@ -30,6 +30,8 @@ export default function PostsPage() {
   const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
   const [totalCount, setTotalCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedPosts, setSelectedPosts] = useState<Post[]>([])
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchPosts()
@@ -97,6 +99,31 @@ export default function PostsPage() {
   const handleTabChange = (value: string) => {
     setActiveTab(value)
     setPagination({ ...pagination, current_page: 1 })
+    setSelectedPosts([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedPosts.length === 0) return
+    
+    try {
+      setBulkDeleting(true)
+      const ids = selectedPosts.map(p => p.id)
+      await PostsService.bulkDelete(ids)
+      toast({
+        title: "Success",
+        description: `${selectedPosts.length} post(s) deleted successfully`,
+      })
+      setSelectedPosts([])
+      fetchPosts()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete posts",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkDeleting(false)
+    }
   }
 
   const columns: ColumnDef<Post>[] = [
@@ -206,20 +233,40 @@ export default function PostsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
         </div>
       ) : viewMode === "list" ? (
-        <DataTable
-          columns={columns}
-          data={posts}
-          searchKey="title"
-          searchPlaceholder="Search posts..."
-          onRowClick={(row) => router.push(`/posts/detail?id=${row.id}`)}
-          serverPagination={{
-            currentPage: pagination.current_page,
-            totalPages: pagination.total_pages,
-            totalCount: totalCount,
-            onPageChange: (page) => setPagination({ ...pagination, current_page: page })
-          }}
-          onSearchChange={(search) => setSearchQuery(search)}
-        />
+        <>
+          {selectedPosts.length > 0 && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+              <span className="text-sm font-medium">
+                {selectedPosts.length} post(s) selected
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Selected
+              </Button>
+            </div>
+          )}
+          <DataTable
+            columns={columns}
+            data={posts}
+            searchKey="title"
+            searchPlaceholder="Search posts..."
+            onRowClick={(row) => router.push(`/posts/detail?id=${row.id}`)}
+            enableRowSelection={true}
+            onSelectionChange={setSelectedPosts}
+            serverPagination={{
+              currentPage: pagination.current_page,
+              totalPages: pagination.total_pages,
+              totalCount: totalCount,
+              onPageChange: (page) => setPagination({ ...pagination, current_page: page })
+            }}
+            onSearchChange={(search) => setSearchQuery(search)}
+          />
+        </>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (

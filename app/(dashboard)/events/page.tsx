@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { ColumnDef } from "@tanstack/react-table"
 import { Plus, Edit, Trash2, Eye, Calendar, MapPin, Clock, RefreshCw } from "lucide-react"
 import { format } from "date-fns"
@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast"
 
 export default function EventsPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<number | null>(null)
@@ -25,9 +26,18 @@ export default function EventsPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
 
+  // Redirect /events to /events/upcoming
   useEffect(() => {
-    fetchData()
-  }, [pagination.current_page])
+    if (pathname === "/events") {
+      router.replace("/events/upcoming")
+    }
+  }, [pathname, router])
+
+  useEffect(() => {
+    if (pathname !== "/events") {
+      fetchData()
+    }
+  }, [pagination.current_page, pathname])
 
   // Debounce search
   useEffect(() => {

@@ -24,6 +24,11 @@ export const MatrimonyService = {
     return response.data.profile
   },
 
+  async update(id: number, data: Partial<MatrimonyProfile>): Promise<MatrimonyProfile> {
+    const response = await http.patch(`/admin/matrimony/profiles/${id}`, { profile: data })
+    return response.data.profile
+  },
+
   async approve(id: number): Promise<MatrimonyProfile> {
     const response = await http.patch(`/admin/matrimony/profiles/${id}/approve`)
     return response.data.profile
@@ -38,6 +43,13 @@ export const MatrimonyService = {
 
   async delete(id: number): Promise<void> {
     await http.delete(`/admin/matrimony/profiles/${id}`)
+  },
+
+  async bulkDelete(ids: number[]): Promise<{ message: string; count: number }> {
+    const response = await http.delete("/admin/matrimony/profiles/bulk_destroy", {
+      data: { ids }
+    })
+    return response.data
   },
 
   async export(): Promise<Response> {

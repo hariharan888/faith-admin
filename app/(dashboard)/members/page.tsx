@@ -26,6 +26,8 @@ export default function MembersPage() {
   const [pagination, setPagination] = useState({ current_page: 1, total_pages: 1, per_page: 20 })
   const [totalCount, setTotalCount] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedMembers, setSelectedMembers] = useState<ChurchMember[]>([])
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     fetchMembers()
@@ -121,6 +123,59 @@ export default function MembersPage() {
   const handleTabChange = (value: string) => {
     setActiveTab(value)
     setPagination({ ...pagination, current_page: 1 })
+    setSelectedMembers([])
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedMembers.length === 0) return
+    
+    try {
+      setBulkDeleting(true)
+      const ids = selectedMembers.map(m => m.id)
+      await MembersService.bulkDelete(ids)
+      toast({
+        title: "Success",
+        description: `${selectedMembers.length} member(s) deleted successfully`,
+      })
+      setSelectedMembers([])
+      fetchMembers()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete members",
+        variant: "destructive",
+      })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  const handleBulkExport = async () => {
+    if (selectedMembers.length === 0) return
+    
+    try {
+      // For now, export all - we can add filtered export later
+      const response = await MembersService.export()
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `church_members_${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast({
+        title: "Success",
+        description: "Members exported successfully",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to export members",
+        variant: "destructive",
+      })
+    }
   }
 
   const columns: ColumnDef<ChurchMember>[] = [
@@ -256,6 +311,33 @@ export default function MembersPage() {
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
+          {selectedMembers.length > 0 && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border bg-muted/50 p-3">
+              <span className="text-sm font-medium">
+                {selectedMembers.length} member(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkExport}
+                  disabled={bulkDeleting}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Selected
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
@@ -267,6 +349,8 @@ export default function MembersPage() {
               searchKey="name"
               searchPlaceholder="Search members..."
               onRowClick={(row) => router.push(`/members/detail?id=${row.id}`)}
+              enableRowSelection={true}
+              onSelectionChange={setSelectedMembers}
               serverPagination={{
                 currentPage: pagination.current_page,
                 totalPages: pagination.total_pages,

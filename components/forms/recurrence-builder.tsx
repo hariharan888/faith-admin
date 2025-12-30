@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { RRule, Weekday } from "rrule"
 import { format, addMonths } from "date-fns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,10 +59,24 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
   const [count, setCount] = useState<number>(10)
   const [until, setUntil] = useState<Date | undefined>(addMonths(new Date(), 3))
   const [startDate, setStartDate] = useState<Date>(new Date())
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // Parse existing RRULE if provided
+  // Store onChange in a ref to avoid dependency issues
+  const onChangeRef = useRef(onChange)
   useEffect(() => {
-    if (value) {
+    onChangeRef.current = onChange
+  }, [onChange])
+
+  // Track parsed value to avoid re-parsing the same value
+  const parsedValueRef = useRef<string | null>(null)
+  const parsedDtstartRef = useRef<string | null>(null)
+
+  // Parse existing RRULE if provided (only once on mount)
+  useEffect(() => {
+    if (isInitialized) return // Only initialize once
+    
+    // Only parse if value actually changed
+    if (value && value !== parsedValueRef.current) {
       try {
         const rule = RRule.fromString(value)
         setFrequency(rule.options.freq)
@@ -87,15 +101,22 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
           setEndType("until")
           setUntil(rule.options.until)
         }
+        
+        parsedValueRef.current = value
       } catch (e) {
         console.error("Failed to parse RRULE:", e)
       }
     }
     
-    if (dtstart) {
+    // Only update start date if it actually changed
+    if (dtstart && dtstart !== parsedDtstartRef.current) {
       setStartDate(new Date(dtstart))
+      parsedDtstartRef.current = dtstart
     }
-  }, [value, dtstart])
+    
+    // Mark as initialized after processing
+    setIsInitialized(true)
+  }, [value, dtstart, isInitialized])
 
   // Generate RRULE string when options change
   const rruleString = useMemo(() => {
@@ -127,12 +148,30 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
     }
   }, [frequency, interval, byweekday, bymonthday, endType, count, until, startDate])
 
-  // Notify parent of changes
+  // Track previous values to avoid unnecessary updates
+  const prevValuesRef = useRef<{ rrule: string; dtstart: string } | null>(null)
+  const isUserChangeRef = useRef(false)
+
+  // Notify parent of changes (only after initialization and when user makes changes)
   useEffect(() => {
-    if (rruleString) {
-      onChange(rruleString, startDate.toISOString())
+    // Don't call onChange during initialization
+    if (!isInitialized || !rruleString) {
+      return
     }
-  }, [rruleString, startDate, onChange])
+
+    const newRrule = rruleString
+    const newDtstart = startDate.toISOString()
+    
+    // Only call onChange if values actually changed and it's a user change
+    if (isUserChangeRef.current && 
+        (!prevValuesRef.current || 
+         prevValuesRef.current.rrule !== newRrule || 
+         prevValuesRef.current.dtstart !== newDtstart)) {
+      prevValuesRef.current = { rrule: newRrule, dtstart: newDtstart }
+      onChangeRef.current(newRrule, newDtstart)
+      isUserChangeRef.current = false
+    }
+  }, [rruleString, startDate, isInitialized])
 
   // Get next occurrences for preview
   const nextOccurrences = useMemo(() => {
@@ -145,6 +184,7 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
   }, [rruleString])
 
   const toggleWeekday = (day: number) => {
+    isUserChangeRef.current = true
     setByweekday((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     )
@@ -180,7 +220,12 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={(date) => date && setStartDate(date)}
+                  onSelect={(date) => {
+                    if (date) {
+                      isUserChangeRef.current = true
+                      setStartDate(date)
+                    }
+                  }}
                   initialFocus
                 />
               </PopoverContent>
@@ -191,10 +236,13 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Repeat</Label>
-              <Select
-                value={frequency.toString()}
-                onValueChange={(v) => setFrequency(Number(v))}
-              >
+                <Select
+                  value={frequency.toString()}
+                  onValueChange={(v) => {
+                    isUserChangeRef.current = true
+                    setFrequency(Number(v))
+                  }}
+                >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -216,7 +264,10 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
                   min={1}
                   max={99}
                   value={interval}
-                  onChange={(e) => setInterval(Number(e.target.value) || 1)}
+                  onChange={(e) => {
+                    isUserChangeRef.current = true
+                    setInterval(Number(e.target.value) || 1)
+                  }}
                   className="w-20"
                 />
                 <span className="text-sm text-muted-foreground">
@@ -259,7 +310,10 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
                 min={1}
                 max={31}
                 value={bymonthday}
-                onChange={(e) => setBymonthday(Number(e.target.value) || 1)}
+                onChange={(e) => {
+                  isUserChangeRef.current = true
+                  setBymonthday(Number(e.target.value) || 1)
+                }}
                 className="w-24"
               />
             </div>
@@ -270,7 +324,10 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
             <Label>Ends</Label>
             <RadioGroup
               value={endType}
-              onValueChange={(v) => setEndType(v as EndType)}
+              onValueChange={(v) => {
+                isUserChangeRef.current = true
+                setEndType(v as EndType)
+              }}
               className="space-y-3"
             >
               <div className="flex items-center space-x-2">
@@ -287,7 +344,10 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
                     min={1}
                     max={999}
                     value={count}
-                    onChange={(e) => setCount(Number(e.target.value) || 1)}
+                    onChange={(e) => {
+                      isUserChangeRef.current = true
+                      setCount(Number(e.target.value) || 1)
+                    }}
                     className="w-20 h-8"
                     disabled={endType !== "count"}
                   />
@@ -318,7 +378,10 @@ export function RecurrenceBuilder({ value, dtstart, onChange }: RecurrenceBuilde
                       <Calendar
                         mode="single"
                         selected={until}
-                        onSelect={setUntil}
+                        onSelect={(date) => {
+                          isUserChangeRef.current = true
+                          setUntil(date)
+                        }}
                         initialFocus
                         disabled={(date) => date < startDate}
                       />

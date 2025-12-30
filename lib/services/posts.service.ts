@@ -36,5 +36,12 @@ export const PostsService = {
   async delete(id: number): Promise<void> {
     await http.delete(`/admin/posts/${id}`)
   },
+
+  async bulkDelete(ids: number[]): Promise<{ message: string; count: number }> {
+    const response = await http.delete("/admin/posts/bulk_destroy", {
+      data: { ids }
+    })
+    return response.data
+  },
 }
 

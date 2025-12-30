@@ -39,6 +39,13 @@ export const MembersService = {
     await http.delete(`/admin/church_members/${id}`)
   },
 
+  async bulkDelete(ids: number[]): Promise<{ message: string; count: number }> {
+    const response = await http.delete("/admin/church_members/bulk_destroy", {
+      data: { ids }
+    })
+    return response.data
+  },
+
   async importCSV(file: File): Promise<{ imported: number; errors: string[] }> {
     const formData = new FormData()
     formData.append("file", file)

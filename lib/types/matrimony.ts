@@ -11,6 +11,7 @@ export interface MatrimonyProfile {
   about?: string
   gender: "Male" | "Female"
   date_of_birth: string
+  age?: number
   marital_status?: string
   education?: string
   job_type?: string
